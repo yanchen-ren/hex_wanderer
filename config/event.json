@@ -1,0 +1,705 @@
+{
+  "events": {
+    "tutorial": {
+      "type": "choice",
+      "title": "旅途的起点",
+      "description": "你站在一片开阔的草地上，远方的迷雾中隐约可见山脉和森林的轮廓。一块古老的石碑矗立在面前，上面刻着文字：「收集三块圣物碎片💎，找到传送门🌀，即可离开此地。小心脚下的地形，善用你找到的道具。祝你好运，旅行者。」",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "仔细阅读石碑上的其他文字",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "hp_change", "value": 5, "message": "石碑散发出温暖的光芒，你感到精力充沛。提示：点击相邻地块可以移动，不同地形消耗不同的行动力（AP）。注意海拔变化带来的风险！" } }
+          ]
+        },
+        {
+          "text": "出发探索",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing", "message": "冒险开始了！" } }
+          ]
+        }
+      ]
+    },
+    "chest_01": {
+      "type": "treasure",
+      "title": "神秘宝箱",
+      "description": "你在灌木丛中发现了一个布满灰尘的古老宝箱，锁已经锈蚀了。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "打开宝箱",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.7, "result": { "type": "item_reward", "itemPool": ["tent", "antidote", "leather_shoes"] } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": -10, "message": "宝箱是个陷阱！一阵毒气喷出！" } }
+          ]
+        },
+        {
+          "text": "用钩爪小心撬开",
+          "conditions": [{ "type": "has_item", "itemId": "rope_claw" }],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "item_reward", "itemPool": ["telescope", "leather_shoes", "tent"] } }
+          ]
+        },
+        {
+          "text": "离开",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "wolf_attack": {
+      "type": "combat",
+      "title": "狼群突袭",
+      "description": "一群饥饿的狼从暗处扑来，月光下它们的眼睛闪着绿光！",
+      "deathWarning": true,
+      "choices": [
+        {
+          "text": "迎战",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.6, "result": { "type": "hp_change", "value": -15, "message": "你击退了狼群，但受了些伤" } },
+            { "probability": 0.4, "result": { "type": "hp_change", "value": -40, "message": "狼群异常凶猛，你身负重伤" } }
+          ]
+        },
+        {
+          "text": "点燃火把驱赶",
+          "conditions": [{ "type": "has_item", "itemId": "tent" }],
+          "outcomes": [
+            { "probability": 0.9, "result": { "type": "nothing", "message": "火光吓退了狼群" } },
+            { "probability": 0.1, "result": { "type": "hp_change", "value": -5, "message": "大部分狼被吓退，但一只胆大的咬了你一口" } }
+          ]
+        },
+        {
+          "text": "逃跑",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.7, "result": { "type": "ap_change", "value": -2, "message": "你拼命奔跑，成功甩掉了狼群" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": -20, "message": "逃跑时被狼咬伤了腿" } }
+          ]
+        }
+      ]
+    },
+    "ruin_explore": {
+      "type": "choice",
+      "title": "古代遗迹",
+      "description": "你来到一座古老的遗迹前，石壁上刻满了神秘的符文，入口处隐约透出微光。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "深入探索",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["telescope", "four_leaf_clover"], "message": "你在密室中发现了珍贵的宝物！" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": -15, "message": "你触发了古老的陷阱！" } },
+            { "probability": 0.3, "result": { "type": "relic_fragment", "message": "你发现了一块闪耀的圣物碎片！" } }
+          ]
+        },
+        {
+          "text": "谨慎搜索外围",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.6, "result": { "type": "item_reward", "itemPool": ["antidote", "tent"], "message": "你在废墟中找到了一些有用的物品" } },
+            { "probability": 0.4, "result": { "type": "nothing", "message": "外围已被搜刮一空，什么也没找到" } }
+          ]
+        },
+        {
+          "text": "离开遗迹",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "stargazing": {
+      "type": "choice",
+      "title": "星空观测",
+      "description": "夜空格外清澈，繁星密布。你注意到星座排列似乎暗示着某个方向……",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "仔细观察星象",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.5, "result": { "type": "vision_bonus_temp", "value": 1, "duration": 3, "message": "你领悟了星象的指引，视野变得更加敏锐" } },
+            { "probability": 0.5, "result": { "type": "hp_change", "value": 5, "message": "宁静的星空让你感到心旷神怡" } }
+          ]
+        },
+        {
+          "text": "继续休息",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "sandstorm": {
+      "type": "combat",
+      "title": "沙暴来袭",
+      "description": "地平线上卷起了一道巨大的沙墙，沙暴正朝你席卷而来！",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "就地掩蔽",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.6, "result": { "type": "hp_change", "value": -10, "message": "你勉强挡住了沙暴，但还是受了些伤" } },
+            { "probability": 0.4, "result": { "type": "ap_change", "value": -1, "message": "沙暴过后你疲惫不堪" } }
+          ]
+        },
+        {
+          "text": "用帐篷抵挡",
+          "conditions": [{ "type": "has_item", "itemId": "tent" }],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing", "message": "帐篷完美地挡住了沙暴" } }
+          ]
+        }
+      ]
+    },
+    "desert_merchant": {
+      "type": "choice",
+      "title": "沙漠商人",
+      "description": "一位神秘的商人牵着骆驼出现在沙丘之间，他向你招手示意。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "上前交易",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.5, "result": { "type": "item_reward", "itemPool": ["telescope", "tent", "antidote"], "message": "商人给了你一件有用的物品" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": 15, "message": "商人分享了清凉的泉水" } },
+            { "probability": 0.2, "result": { "type": "hp_change", "value": -10, "message": "商人是个骗子！他偷袭了你！" } }
+          ]
+        },
+        {
+          "text": "保持警惕，绕道走",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "sea_storm": {
+      "type": "combat",
+      "title": "海上风暴",
+      "description": "乌云密布，狂风骤起，巨浪拍打着你的小船！",
+      "deathWarning": true,
+      "choices": [
+        {
+          "text": "奋力抵抗风浪",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.5, "result": { "type": "hp_change", "value": -10, "message": "你艰难地稳住了船只" } },
+            { "probability": 0.5, "result": { "type": "hp_change", "value": -25, "message": "一个巨浪将你掀翻，你差点溺水" } }
+          ]
+        },
+        {
+          "text": "顺风漂流",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.7, "result": { "type": "ap_change", "value": -2, "message": "你随波逐流，消耗了大量体力" } },
+            { "probability": 0.3, "result": { "type": "nothing", "message": "风暴很快过去了，你安然无恙" } }
+          ]
+        }
+      ]
+    },
+    "floating_crate": {
+      "type": "treasure",
+      "title": "漂浮的木箱",
+      "description": "你发现水面上漂浮着一个密封的木箱，看起来是某艘沉船的货物。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "打捞木箱",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.6, "result": { "type": "item_reward", "itemPool": ["tent", "antidote", "leather_shoes"], "message": "木箱里装着有用的物品！" } },
+            { "probability": 0.4, "result": { "type": "hp_change", "value": 10, "message": "木箱里装着新鲜的食物和淡水" } }
+          ]
+        },
+        {
+          "text": "忽略它",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    }
+,
+    "forest_spirit": {
+      "type": "choice",
+      "title": "森林精灵",
+      "description": "树丛中闪烁着淡绿色的光芒，一个半透明的精灵出现在你面前。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "友好地打招呼",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.6, "result": { "type": "hp_change", "value": 20, "message": "精灵用魔法治愈了你的伤口" } },
+            { "probability": 0.4, "result": { "type": "vision_bonus_temp", "value": 2, "duration": 5, "message": "精灵赐予你森林之眼" } }
+          ]
+        },
+        {
+          "text": "请求指引方向",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.7, "result": { "type": "reveal_map", "radius": 5, "message": "精灵为你揭开了周围的迷雾" } },
+            { "probability": 0.3, "result": { "type": "nothing", "message": "精灵微笑着消失了" } }
+          ]
+        }
+      ]
+    },
+    "herb_discovery": {
+      "type": "treasure",
+      "title": "草药发现",
+      "description": "你在林间发现了一片珍贵的草药丛。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "采集草药",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.7, "result": { "type": "hp_change", "value": 15, "message": "你用草药制成了药膏，恢复了一些生命" } },
+            { "probability": 0.3, "result": { "type": "item_reward", "itemPool": ["antidote"], "message": "你制成了一瓶解毒药！" } }
+          ]
+        },
+        {
+          "text": "标记位置后离开",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "swamp_creature": {
+      "type": "combat",
+      "title": "沼泽怪物",
+      "description": "泥水中突然伸出一只巨大的触手，一头沼泽怪物正从淤泥中爬出！",
+      "deathWarning": true,
+      "choices": [
+        {
+          "text": "战斗",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.5, "result": { "type": "hp_change", "value": -20, "message": "你击败了怪物，但被触手抽伤" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": -35, "message": "怪物的毒液灼伤了你" } },
+            { "probability": 0.2, "result": { "type": "item_reward", "itemPool": ["antidote"], "message": "你击败了怪物，从它体内取出了解毒成分" } }
+          ]
+        },
+        {
+          "text": "逃跑",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.6, "result": { "type": "ap_change", "value": -2, "message": "你在泥泞中艰难逃脱" } },
+            { "probability": 0.4, "result": { "type": "status_effect", "statusId": "poison", "duration": 3, "message": "逃跑时被毒液溅到" } }
+          ]
+        }
+      ]
+    },
+    "will_o_wisp": {
+      "type": "choice",
+      "title": "鬼火",
+      "description": "沼泽深处飘来几团幽蓝色的鬼火，它们似乎在引导你前往某个方向……",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "跟随鬼火",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["four_leaf_clover", "telescope"], "message": "鬼火引导你找到了隐藏的宝物！" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": -15, "message": "鬼火将你引入了陷阱！" } },
+            { "probability": 0.3, "result": { "type": "status_effect", "statusId": "poison", "duration": 2, "message": "你吸入了沼气，感到头晕目眩" } }
+          ]
+        },
+        {
+          "text": "无视鬼火",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "lava_eruption": {
+      "type": "combat",
+      "title": "熔岩喷发",
+      "description": "地面开始剧烈震动，附近的裂缝中喷出炽热的岩浆！",
+      "deathWarning": true,
+      "choices": [
+        {
+          "text": "快速躲避",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.5, "result": { "type": "hp_change", "value": -15, "message": "你被飞溅的岩浆灼伤" } },
+            { "probability": 0.5, "result": { "type": "hp_change", "value": -30, "message": "岩浆流挡住了去路，你被严重烫伤" } }
+          ]
+        },
+        {
+          "text": "用防火靴踏过",
+          "conditions": [{ "type": "has_item", "itemId": "fire_boots" }],
+          "outcomes": [
+            { "probability": 0.9, "result": { "type": "nothing", "message": "防火靴保护你安全通过了喷发区域" } },
+            { "probability": 0.1, "result": { "type": "hp_change", "value": -5, "message": "虽有防火靴保护，但热浪还是让你不太舒服" } }
+          ]
+        }
+      ]
+    },
+    "blizzard": {
+      "type": "combat",
+      "title": "暴风雪",
+      "description": "气温骤降，一场猛烈的暴风雪席卷而来，能见度几乎为零！",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "原地等待暴风雪过去",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.6, "result": { "type": "hp_change", "value": -10, "message": "你在寒风中瑟瑟发抖，体温下降" } },
+            { "probability": 0.4, "result": { "type": "status_effect", "statusId": "frostbite", "duration": 2, "message": "你的手脚开始冻伤" } }
+          ]
+        },
+        {
+          "text": "搭建帐篷避风",
+          "conditions": [{ "type": "has_item", "itemId": "tent" }],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "hp_change", "value": 5, "message": "帐篷为你挡住了风雪，你安然度过了暴风雪" } }
+          ]
+        }
+      ]
+    },
+    "ice_crack": {
+      "type": "choice",
+      "title": "冰面裂缝",
+      "description": "脚下的冰面发出不祥的咔嚓声，裂缝正在蔓延……",
+      "deathWarning": true,
+      "choices": [
+        {
+          "text": "小心翼翼地移动",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.7, "result": { "type": "nothing", "message": "你成功避开了裂缝区域" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": -25, "message": "冰面碎裂，你掉入了冰冷的水中！" } }
+          ]
+        },
+        {
+          "text": "用钩爪固定自己",
+          "conditions": [{ "type": "has_item", "itemId": "rope_claw" }],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing", "message": "钩爪牢牢地固定住了你，安全通过" } }
+          ]
+        }
+      ]
+    }
+,
+    "city_market": {
+      "type": "choice",
+      "title": "城镇集市",
+      "description": "热闹的集市上商贩们叫卖着各种货物，你可以在这里交易或打听消息。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "逛逛摊位",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.5, "result": { "type": "item_reward", "itemPool": ["tent", "antidote", "leather_shoes"], "message": "你在摊位上发现了有用的物品" } },
+            { "probability": 0.5, "result": { "type": "hp_change", "value": 10, "message": "你在酒馆里饱餐一顿，恢复了精力" } }
+          ]
+        },
+        {
+          "text": "打听圣物碎片的消息",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.4, "result": { "type": "reveal_map", "radius": 8, "message": "一位老者为你指明了方向，揭开了远方的迷雾" } },
+            { "probability": 0.6, "result": { "type": "nothing", "message": "没人知道圣物碎片的下落" } }
+          ]
+        },
+        {
+          "text": "直接离开",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "cave_explore": {
+      "type": "choice",
+      "title": "幽深洞穴",
+      "description": "洞穴入口处散发着潮湿的气息，深处传来滴水声和不明的回响。",
+      "deathWarning": true,
+      "choices": [
+        {
+          "text": "深入洞穴",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.35, "result": { "type": "item_reward", "itemPool": ["rope_claw", "fire_boots", "four_leaf_clover"], "message": "你在洞穴深处发现了珍贵的宝物！" } },
+            { "probability": 0.35, "result": { "type": "hp_change", "value": -20, "message": "洞穴中的蝙蝠群攻击了你！" } },
+            { "probability": 0.3, "result": { "type": "relic_fragment", "message": "洞穴最深处闪耀着圣物碎片的光芒！" } }
+          ]
+        },
+        {
+          "text": "只探索入口附近",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.5, "result": { "type": "item_reward", "itemPool": ["tent", "antidote"], "message": "你在入口处找到了一些物资" } },
+            { "probability": 0.5, "result": { "type": "nothing", "message": "入口附近空无一物" } }
+          ]
+        },
+        {
+          "text": "离开洞穴",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "mine_explore": {
+      "type": "choice",
+      "title": "废弃矿坑",
+      "description": "矿坑的木质支架已经腐朽，但矿道深处似乎还有未被开采的矿脉。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "进入矿道搜索",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["fire_boots", "leather_shoes"], "message": "你在矿脉中发现了特殊的矿石制品！" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": -10, "message": "矿道塌方！碎石砸伤了你" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": 5, "message": "你找到了矿工留下的食物和水" } }
+          ]
+        },
+        {
+          "text": "用钩爪加固支架后进入",
+          "conditions": [{ "type": "has_item", "itemId": "rope_claw" }],
+          "outcomes": [
+            { "probability": 0.7, "result": { "type": "item_reward", "itemPool": ["fire_boots", "telescope", "four_leaf_clover"], "message": "加固后你安全地深入矿道，发现了宝物" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": 10, "message": "矿道安全，你找到了矿工的补给品" } }
+          ]
+        },
+        {
+          "text": "离开矿坑",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "monster_camp_battle": {
+      "type": "combat",
+      "title": "怪物营地",
+      "description": "你闯入了怪物的领地！几只凶猛的怪物发现了你，正朝你冲来！⚠️ 此战斗非常危险",
+      "deathWarning": true,
+      "choices": [
+        {
+          "text": "全力战斗",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.3, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -20 }, { "type": "item_reward", "itemPool": ["rope_claw", "parachute", "four_leaf_clover"] }], "message": "你浴血奋战击败了怪物，在营地中找到了宝物！" } },
+            { "probability": 0.4, "result": { "type": "hp_change", "value": -35, "message": "你勉强击退了怪物，但伤势严重" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": -50, "message": "怪物太强了，你几乎丧命！" } }
+          ]
+        },
+        {
+          "text": "偷偷搜刮后撤退",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["tent", "antidote", "leather_shoes"], "message": "你悄悄拿走了一些物品后溜走了" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": -25, "message": "你被发现了！怪物追上来攻击了你" } },
+            { "probability": 0.3, "result": { "type": "nothing", "message": "营地里什么值钱的东西都没有" } }
+          ]
+        },
+        {
+          "text": "立刻逃跑",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.6, "result": { "type": "ap_change", "value": -3, "message": "你拼命逃跑，消耗了大量体力" } },
+            { "probability": 0.4, "result": { "type": "hp_change", "value": -15, "message": "逃跑时被怪物追上，受了伤" } }
+          ]
+        }
+      ]
+    },
+    "chest_02": {
+      "type": "treasure",
+      "title": "藏宝箱",
+      "description": "一个精致的铁箱半埋在土中，上面刻着奇怪的纹章。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "强行打开",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.5, "result": { "type": "item_reward", "itemPool": ["parachute", "boat", "telescope"], "message": "箱子里装着珍贵的物品！" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": -15, "message": "箱子上的机关触发了，一根毒针刺中了你！" } },
+            { "probability": 0.2, "result": { "type": "hp_change", "value": 20, "message": "箱子里装着治愈药水！" } }
+          ]
+        },
+        {
+          "text": "离开",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "wandering_healer": {
+      "type": "choice",
+      "title": "流浪治疗师",
+      "description": "一位身披斗篷的治疗师坐在路边，她的药箱里散发着草药的清香。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "请求治疗",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.8, "result": { "type": "hp_change", "value": 30, "message": "治疗师用精湛的医术治愈了你的伤口" } },
+            { "probability": 0.2, "result": { "type": "hp_max_change", "value": 10, "message": "治疗师的秘药永久增强了你的体质！" } }
+          ]
+        },
+        {
+          "text": "请求治疗",
+          "conditions": [{ "type": "hp_below", "value": 30 }],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "hp_change", "value": 50, "message": "治疗师看到你伤势严重，全力施救" } }
+          ]
+        },
+        {
+          "text": "婉拒好意",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "ancient_shrine": {
+      "type": "choice",
+      "title": "古老神龛",
+      "description": "路边矗立着一座苔藓覆盖的古老神龛，石像的眼睛似乎在注视着你。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "虔诚祈祷",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.4, "result": { "type": "hp_change", "value": 20, "message": "神龛散发出温暖的光芒，你感到伤口在愈合" } },
+            { "probability": 0.3, "result": { "type": "ap_max_change", "value": 1, "duration": 5, "message": "你感到一股力量涌入体内" } },
+            { "probability": 0.3, "result": { "type": "nothing", "message": "什么也没有发生" } }
+          ]
+        },
+        {
+          "text": "检查神龛底座",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.3, "result": { "type": "item_reward", "itemPool": ["four_leaf_clover", "antidote"], "message": "你在底座的暗格中发现了供品" } },
+            { "probability": 0.7, "result": { "type": "nothing", "message": "底座下空无一物" } }
+          ]
+        },
+        {
+          "text": "继续赶路",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "relic_guardian": {
+      "type": "combat",
+      "title": "圣物守护者",
+      "description": "一个巨大的石像突然活了过来，它的眼中闪烁着蓝色的光芒。这是圣物碎片的守护者！⚠️ 此战斗非常危险",
+      "deathWarning": true,
+      "choices": [
+        {
+          "text": "挑战守护者",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.5, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -30 }, { "type": "relic_fragment" }], "message": "你击败了守护者！在它碎裂的身体中，一块圣物碎片闪耀着光芒！" } },
+            { "probability": 0.5, "result": { "type": "hp_change", "value": -45, "message": "守护者太强了，你被击退，身负重伤" } }
+          ]
+        },
+        {
+          "text": "用四叶草祈求好运后再战",
+          "conditions": [{ "type": "has_item", "itemId": "four_leaf_clover" }],
+          "outcomes": [
+            { "probability": 0.8, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -15 }, { "type": "relic_fragment" }], "message": "四叶草的幸运光环护佑着你，你成功击败了守护者并获得了圣物碎片！" } },
+            { "probability": 0.2, "result": { "type": "hp_change", "value": -25, "message": "即使有幸运加持，守护者依然强大，你被击退了" } }
+          ]
+        },
+        {
+          "text": "暂时撤退",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing", "message": "你决定先变强再来挑战" } }
+          ]
+        }
+      ]
+    },
+    "relic_shrine": {
+      "type": "choice",
+      "title": "神秘祭坛",
+      "description": "你发现了一座被藤蔓缠绕的古老祭坛，中央的凹槽中似乎曾经放置着什么重要的东西。祭坛周围的空气中弥漫着神秘的能量。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "触碰祭坛",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.6, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -10 }, { "type": "relic_fragment" }], "message": "一道光芒闪过，祭坛中浮现出一块圣物碎片！但能量的冲击让你受了些伤。" } },
+            { "probability": 0.4, "result": { "type": "hp_change", "value": -20, "message": "祭坛释放出防御能量，将你弹开！也许需要别的方法……" } }
+          ]
+        },
+        {
+          "text": "用望远镜仔细观察祭坛结构",
+          "conditions": [{ "type": "has_item", "itemId": "telescope" }],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "relic_fragment", "message": "通过望远镜你发现了祭坛的机关，轻松取出了圣物碎片！" } }
+          ]
+        },
+        {
+          "text": "离开祭坛",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "relic_trial": {
+      "type": "choice",
+      "title": "试炼之地",
+      "description": "你来到一片被魔法笼罩的空地，地面上刻着复杂的符文阵。空气中传来低沉的声音：「通过试炼者，可获圣物。」",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "接受试炼",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.5, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -15 }, { "type": "relic_fragment" }], "message": "你经历了艰难的试炼，最终获得了圣物碎片！" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": -25, "message": "试炼太过艰难，你未能通过" } },
+            { "probability": 0.2, "result": { "type": "relic_fragment", "message": "你的意志力令人惊叹，毫发无伤地通过了试炼并获得了圣物碎片！" } }
+          ]
+        },
+        {
+          "text": "稍后再来",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing", "message": "符文阵的光芒渐渐暗淡，等待下一位挑战者" } }
+          ]
+        }
+      ]
+    }
+  }
+}

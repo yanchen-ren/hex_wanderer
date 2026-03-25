@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HexWanderer 素材预览</title>
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7/dist/pixi.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #1a1a2e; color: #eee; padding: 20px; }
+    h1 { font-size: 22px; margin-bottom: 6px; }
+    .subtitle { font-size: 13px; color: #888; margin-bottom: 20px; }
+    .section { margin-bottom: 24px; }
+    .section h2 { font-size: 16px; margin-bottom: 10px; color: #aaa; }
+    #pixi-container { border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
+    .asset-grid { display: flex; flex-wrap: wrap; gap: 12px; }
+    .asset-card {
+      background: #2a2a4a; border-radius: 8px; padding: 10px; text-align: center; width: 160px;
+    }
+    .asset-card img { max-width: 128px; max-height: 128px; image-rendering: pixelated; }
+    .asset-card .name { font-size: 12px; color: #ccc; margin-top: 6px; }
+    .asset-card .info { font-size: 11px; color: #777; margin-top: 2px; }
+    #drop-zone {
+      border: 2px dashed #555; border-radius: 8px; padding: 30px; text-align: center;
+      color: #777; font-size: 14px; cursor: pointer; transition: border-color 0.2s;
+    }
+    #drop-zone.dragover { border-color: #4fc3f7; color: #4fc3f7; }
+    #drop-preview { margin-top: 12px; display: flex; flex-wrap: wrap; gap: 12px; }
+  </style>
+</head>
+<body>
+  <h1>🎨 HexWanderer 素材预览</h1>
+  <p class="subtitle">尖顶六边形（pointy-top）布局 · 拖入素材即时预览</p>
+
+  <div class="section">
+    <h2>六边形网格预览</h2>
+    <div id="pixi-container"></div>
+  </div>
+
+  <div class="section">
+    <h2>已有地形素材</h2>
+    <div class="asset-grid" id="terrain-assets"></div>
+  </div>
+
+  <div class="section">
+    <h2>拖入素材预览</h2>
+    <div id="drop-zone">将图片文件拖到这里，或点击选择文件</div>
+    <input type="file" id="file-input" multiple accept="image/*" style="display:none">
+    <div id="drop-preview"></div>
+  </div>
+
+  <script type="module">
+    const SQRT3 = Math.sqrt(3);
+    const HEX_SIZE = 40;
+    const GRID_ROWS = 5;
+    const GRID_COLS = 7;
+
+    // Known terrain assets
+    const TERRAIN_FILES = [
+      'grass.png', 'grass_snow.png', 'desert.png', 'desert_snow.png', 'water.png',
+      'forest.png', 'forest_deep.png', 'swamp.png', 'lava.png', 'ice.png'
+    ];
+
+    // Pointy-top hex to pixel
+    function hexToPixel(q, r, size) {
+      const x = size * (SQRT3 * q + (SQRT3 / 2) * r);
+      const y = size * (1.5 * r);
+      return { x, y };
+    }
+
+    // Draw pointy-top hex path
+    function drawHexPath(g, cx, cy, size) {
+      const points = [];
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 180) * (60 * i - 30);
+        points.push(cx + size * Math.cos(angle), cy + size * Math.sin(angle));
+      }
+      g.drawPolygon(points);
+    }
+
+    // --- PixiJS hex grid preview ---
+    const app = new PIXI.Application({
+      width: 560, height: 380, backgroundColor: 0x16213e, antialias: true
+    });
+    document.getElementById('pixi-container').appendChild(app.view);
+
+    const container = new PIXI.Container();
+    container.x = 80;
+    container.y = 60;
+    app.stage.addChild(container);
+
+    // Load available textures
+    const textureMap = {};
+    const terrainNames = ['grass', 'grass_snow', 'desert', 'desert_snow', 'water'];
+
+    async function loadTextures() {
+      for (const name of terrainNames) {
+        try {
+          const tex = await PIXI.Assets.load(`../assets/terrain/${name}.png`);
+          textureMap[name] = tex;
+        } catch (e) {
+          // texture not available
+        }
+      }
+      renderGrid();
+    }
+
+    function renderGrid() {
+      container.removeChildren();
+      const terrainKeys = Object.keys(textureMap);
+      let idx = 0;
+
+      for (let r = 0; r < GRID_ROWS; r++) {
+        for (let q = 0; q < GRID_COLS; q++) {
+          const pos = hexToPixel(q, r, HEX_SIZE);
+
+          if (terrainKeys.length > 0) {
+            const key = terrainKeys[idx % terrainKeys.length];
+            const sprite = new PIXI.Sprite(textureMap[key]);
+            sprite.anchor.set(0.5);
+            sprite.x = pos.x;
+            sprite.y = pos.y;
+            sprite.width = HEX_SIZE * 2;
+            sprite.height = HEX_SIZE * 2;
+
+            // Hex mask
+            const mask = new PIXI.Graphics();
+            mask.beginFill(0xffffff);
+            drawHexPath(mask, pos.x, pos.y, HEX_SIZE);
+            mask.endFill();
+            container.addChild(mask);
+            sprite.mask = mask;
+            container.addChild(sprite);
+          }
+
+          // Hex outline
+          const outline = new PIXI.Graphics();
+          outline.lineStyle(1, 0x4a4a6a, 0.6);
+          drawHexPath(outline, pos.x, pos.y, HEX_SIZE);
+          container.addChild(outline);
+
+          // Coordinate label
+          const label = new PIXI.Text(`${q},${r}`, { fontSize: 10, fill: 0x888888 });
+          label.anchor.set(0.5);
+          label.x = pos.x;
+          label.y = pos.y;
+          container.addChild(label);
+
+          idx++;
+        }
+      }
+    }
+
+    loadTextures();
+
+    // --- Asset cards ---
+    const terrainGrid = document.getElementById('terrain-assets');
+
+    for (const file of TERRAIN_FILES) {
+      const card = document.createElement('div');
+      card.className = 'asset-card';
+      const img = document.createElement('img');
+      img.src = `../assets/terrain/${file}`;
+      img.alt = file;
+      img.onerror = () => { card.style.opacity = '0.3'; img.alt = '未找到'; };
+      img.onload = () => {
+        info.textContent = `${img.naturalWidth}×${img.naturalHeight}`;
+      };
+      const nameEl = document.createElement('div');
+      nameEl.className = 'name';
+      nameEl.textContent = file;
+      const info = document.createElement('div');
+      info.className = 'info';
+      info.textContent = '加载中...';
+      card.appendChild(img);
+      card.appendChild(nameEl);
+      card.appendChild(info);
+      terrainGrid.appendChild(card);
+    }
+
+    // --- Drag & drop preview ---
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const dropPreview = document.getElementById('drop-preview');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('dragover'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      handleFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+    function handleFiles(files) {
+      for (const file of files) {
+        if (!file.type.startsWith('image/')) continue;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const card = document.createElement('div');
+          card.className = 'asset-card';
+          const img = document.createElement('img');
+          img.src = e.target.result;
+          img.onload = () => {
+            info.textContent = `${img.naturalWidth}×${img.naturalHeight} · ${(file.size / 1024).toFixed(1)}KB`;
+          };
+          const nameEl = document.createElement('div');
+          nameEl.className = 'name';
+          nameEl.textContent = file.name;
+          const info = document.createElement('div');
+          info.className = 'info';
+          card.appendChild(img);
+          card.appendChild(nameEl);
+          card.appendChild(info);
+          dropPreview.appendChild(card);
+        };
+        reader.readAsDataURL(file);
+      }
+    }
+  </script>
+</body>
+</html>

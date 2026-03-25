@@ -1,0 +1,244 @@
+# 实施计划：HexWanderer（六边形浪游者）
+
+## 概述
+
+基于纯 ES6+ 模块 + CDN PixiJS 的六边形 Roguelike 游戏。自底向上实施：核心工具 → 数据层 → 游戏逻辑 → 渲染层 → UI → 整合。每个核心模块附带单元测试，使用自定义浏览器端测试运行器（不引入 npm）。
+
+## 任务
+
+- [x] 1. 搭建项目骨架与基础设施
+  - [x] 1.1 创建项目目录结构和入口文件
+    - 创建 index.html（PixiJS CDN + Tailwind CDN + ES Module 入口）
+    - 创建 src/ 子目录：core/、map/、systems/、render/、ui/、utils/
+    - 创建 config/ 目录和 JSON 配置骨架，assets/ 和 tests/ 目录
+    - _需求: 8.1, 15.1_
+  - [x] 1.2 实现自定义测试运行器
+    - 创建 tests/test-runner.js 和 tests/index.html
+    - 简易断言库 + 浏览器端测试页面 + 异步测试 + 统计汇总
+    - _需求: 用户要求（回归测试框架）_
+  - [x] 1.3 实现 EventBus 事件总线
+    - 创建 src/core/EventBus.js：on/off/emit/once
+    - _需求: 设计文档（模块通信）_
+  - [x]* 1.4 编写 EventBus 单元测试
+    - 测试发布订阅、once、off、多监听器
+    - _需求: 用户要求（回归测试）_
+  - [x] 1.5 实现 ConfigLoader 配置加载器
+    - 创建 src/core/ConfigLoader.js：fetch 加载 JSON，缓存，loadAll()
+    - _需求: 1.1, 2.2, 6.12, 13.8, 14.4_
+- [x] 2. 实现六边形数学工具与种子随机
+  - [x] 2.1 实现 HexMath 和 HexGrid
+    - 创建 src/utils/HexMath.js 和 src/map/HexGrid.js
+    - 尖顶六边形 Axial (q,r)：neighbors/distance/hexToPixel/pixelToHex/hexesInRange/isInBounds
+    - _需求: 1.1, 9.5_
+  - [x]* 2.2 编写 HexGrid 单元测试
+    - neighbors 返回 6 个、distance 对称、hexToPixel↔pixelToHex 往返一致
+    - _需求: 用户要求（回归测试）_
+  - [x] 2.3 实现 SeededRandom 种子随机数生成器
+    - 创建 src/utils/SeededRandom.js：next()/nextInt()/shuffle()
+    - _需求: 1.9_
+  - [x] 2.4 实现 SimplexNoise 噪声算法
+    - 创建 src/utils/SimplexNoise.js：2D Simplex Noise + 种子
+    - _需求: 1.4_
+  - [x]* 2.5 编写 SeededRandom 和 SimplexNoise 单元测试
+    - 相同种子相同序列、不同种子不同序列、噪声值 [-1,1]
+    - _需求: 1.9, 用户要求（回归测试）_
+- [x] 3. 检查点 — 基础设施验证
+  - 确保所有测试通过，浏览器打开 tests/index.html 验证。如有问题请向用户确认。
+- [x] 4. 实现数据层（JSON 配置文件）
+  - [x] 4.1 编写 terrain.json 地形配置
+    - 所有地形（草地/荒漠/水域/森林/沼泽/熔岩/浮冰）完整属性 + 多变体素材
+    - _需求: 1.2, 2.2, 4.1, 5.8, 8.3_
+  - [x] 4.2 编写 building.json 建筑配置
+    - 所有建筑（灯塔/营地/城市/遗迹/传送门/传送阵等）+ 约束规则
+    - _需求: 14.4, 14.7, 14.8_
+  - [x] 4.3 编写 item.json 道具配置
+    - 所有道具（钩爪/降落伞/船只/防火靴/望远镜/皮靴/帐篷/四叶草/解毒药）
+    - _需求: 13.4, 13.8_
+  - [x] 4.4 编写 event.json 事件配置
+    - 初始事件集（宝箱/狼群突袭/遗迹探索等）含 choices + outcomes
+    - _需求: 6.1, 6.2, 6.3, 6.12_
+- [x] 5. 实现玩家状态与道具系统
+  - [x] 5.1 实现 PlayerState
+    - 创建 src/systems/PlayerState.js
+    - 属性：position/hp/hpMax/ap/apMax/turnNumber/relicsCollected/statusEffects
+    - 方法：applyDamage/heal/addStatusEffect/tickStatusEffects/toJSON/fromJSON
+    - _需求: 12.1~12.6_
+  - [x]* 5.2 编写 PlayerState 单元测试
+    - HP 边界、伤害扣减、状态效果生命周期、序列化往返
+    - _需求: 12.1, 12.2, 用户要求（回归测试）_
+  - [x] 5.3 实现 ItemSystem
+    - 创建 src/systems/ItemSystem.js
+    - addItem/hasItem/hasActiveItem/toggleItem/exchangeItem/getActiveEffects/getInventory
+    - _需求: 13.1~13.3, 13.8~13.12_
+  - [x]* 5.4 编写 ItemSystem 单元测试
+    - 添加/持有/启用禁用/交换/效果汇总/禁用无效果
+    - _需求: 13.1, 13.11, 13.12, 用户要求（回归测试）_
+- [x] 6. 实现地图生成系统
+  - [x] 6.1 实现 MapData 地图数据结构
+    - 创建 src/map/MapData.js：getTile/setTile/getAllTiles/getSize，Map 以 "q,r" 为 key
+    - _需求: 1.1_
+  - [x] 6.2 实现 MapGenerator 地图生成器
+    - 创建 src/map/MapGenerator.js
+    - generate()：SimplexNoise + SeededRandom 生成海拔和地形
+    - placeRelics()：极值坐标处放 3 个圣物碎片
+    - placeBuildings()：遵循 allowedTerrains + adjacencyConstraints
+    - placeItems()：道具与地形匹配（有水域则有船等）
+    - validateReachability()：BFS 验证可达性
+    - 三档尺寸，出生点在中心且周围可通行
+    - _需求: 1.1~1.9, 13.5~13.7_
+  - [x] 6.3 实现 fromPreset 预设地图加载
+    - MapGenerator.fromPreset(jsonData)
+    - _需求: 1.1, 1.10_
+  - [x]* 6.4 编写 MapGenerator 单元测试
+    - 相同种子相同地图、出生点可通行、圣物碎片数量和分散、建筑地形约束
+    - _需求: 1.3, 1.7~1.9, 用户要求（回归测试）_
+- [x] 7. 实现移动系统
+  - [x] 7.1 实现 MovementSystem
+    - 创建 src/systems/MovementSystem.js
+    - calculateAPCost：地形基础 + 海拔差修正（Δe=0 无修正；+1~+3 加 Δe；<0 固定 0.5）
+    - canMoveTo：通行检查（道具/海拔/AP/水域）
+    - executeMove：移动 + 摔伤 + 地形进入伤害/状态
+    - 海拔限制：Δe>+3 需钩爪；Δe≤-4 需降落伞
+    - 摔伤：Δe=-1~-2 无伞 10%×10HP；Δe=-3 无伞 40%×30HP
+    - 水域：需船只、进出同海拔、内部无海拔差、进出额外 AP
+    - _需求: 2.1~2.18_
+  - [x]* 7.2 编写 MovementSystem 单元测试
+    - AP 消耗计算、通行限制、水域规则、道具影响
+    - _需求: 2.1~2.18, 用户要求（回归测试）_
+- [x] 8. 实现回合系统与休息效果
+  - [x] 8.1 实现 TurnSystem
+    - 创建 src/systems/TurnSystem.js
+    - startNewTurn/endTurn/calculateRestEffect/handleRemainingAP/getEffectiveAPMax
+    - _需求: 3.1~3.11, 4.1~4.9_
+  - [x]* 8.2 编写 TurnSystem 单元测试
+    - AP 恢复、休息效果、剩余 AP 处理、负面状态
+    - _需求: 3.1~3.3, 4.1~4.4, 用户要求（回归测试）_
+- [x] 9. 实现事件系统
+  - [x] 9.1 实现 EventSystem
+    - 创建 src/systems/EventSystem.js
+    - triggerEvent/resolveChoice/checkBranchConditions/refreshEvents/getAvailableEvents
+    - 事件触发后从地块移除
+    - _需求: 6.1~6.12_
+  - [x]* 9.2 编写 EventSystem 单元测试
+    - 事件触发、分支条件、概率结果、刷新逻辑
+    - _需求: 6.1~6.11, 用户要求（回归测试）_
+- [x] 10. 实现迷雾系统与建筑系统
+  - [x] 10.1 实现 FogSystem
+    - 创建 src/systems/FogSystem.js
+    - 三态迷雾 + calculateVisionRange（基础 2 + 海拔 + 地形 + 道具/建筑，最小 1）+ updateFog
+    - _需求: 5.1~5.12_
+  - [ ]* 10.2 编写 FogSystem 单元测试
+    - 初始迷雾、视野计算、最小值 1、移动后更新
+    - _需求: 5.1~5.9, 用户要求（回归测试）_
+  - [x] 10.3 实现 BuildingSystem
+    - 创建 src/systems/BuildingSystem.js
+    - triggerBuildingEffect/getTeleportTarget/getAreaEffect
+    - _需求: 14.1~14.6, 14.10_
+  - [x]* 10.4 编写 BuildingSystem 单元测试
+    - 建筑效果、传送阵配对、区域效果
+    - _需求: 14.3, 14.5, 14.6, 用户要求（回归测试）_
+- [x] 11. 实现存档系统
+  - [x] 11.1 实现 SaveSystem
+    - 创建 src/systems/SaveSystem.js
+    - serialize/deserialize/validate/autoSave/loadAutoSave/migrate
+    - _需求: 10.1~10.8_
+  - [x]* 11.2 编写 SaveSystem 单元测试
+    - 序列化往返一致、无效 JSON 拒绝、版本迁移、数据校验
+    - _需求: 10.1~10.4, 10.7, 10.8, 用户要求（回归测试）_
+- [x] 12. 检查点 — 游戏逻辑层验证
+  - 确保所有游戏逻辑系统的单元测试通过。如有问题请向用户确认。
+- [x] 13. 实现渲染引擎
+  - [x] 13.1 实现 AssetLoader 素材预加载与缓存
+    - 创建 src/render/AssetLoader.js
+    - 批量预加载、缓存、进度回调、缺失回退（颜色/Emoji）、多变体
+    - _需求: 8.6, 8.9_
+  - [x] 13.2 实现 Camera 视口/相机控制
+    - 创建 src/render/Camera.js
+    - pan/zoom/panTo（平滑）/getVisibleHexRange/screenToWorld
+    - _需求: 9.1~9.4_
+  - [x] 13.3 实现 HexRenderer 六边形绘制工具
+    - 创建 src/render/HexRenderer.js
+    - 尖顶六边形绘制、素材裁剪、多变体选择、海拔阴影
+    - _需求: 8.1, 8.3, 8.10_
+  - [x] 13.4 实现 LayerManager 五层渲染管理
+    - 创建 src/render/LayerManager.js
+    - 五层 Container：地形(L0)/装饰(L1)/建筑(L2)/角色事件(L3)/迷雾(L4)
+    - _需求: 8.1, 8.2_
+  - [x] 13.5 实现 RenderEngine 渲染主控
+    - 创建 src/render/RenderEngine.js
+    - renderVisibleTiles（视口裁剪）/updatePlayerPosition/updateFogLayer/highlightTile/showTileInfo
+    - _需求: 8.1~8.9_
+- [x] 14. 素材预览测试窗口
+  - [x] 14.1 创建素材预览测试页面
+    - 创建 tests/asset-preview.html
+    - PixiJS 渲染 5×5 六边形网格展示地形素材变体
+    - 建筑/道具/UI 素材缩略图列表
+    - 文件拖拽区域即时预览自定义素材在六边形上的效果
+    - 显示素材尺寸和文件大小
+    - _需求: 8.3~8.5, 用户要求（素材测试窗口）_
+- [x] 15. 检查点 — 渲染层与素材预览验证
+  - 浏览器打开 tests/asset-preview.html 验证渲染和素材加载。用户可放入素材预览。如有问题请向用户确认。
+- [x] 16. 实现输入处理与 UI 层
+  - [x] 16.1 实现 InputHandler
+    - 创建 src/ui/InputHandler.js
+    - 点击→hex:click、拖拽→Camera.pan、缩放（滚轮+双指）→Camera.zoom、区分点击/拖拽
+    - _需求: 9.1~9.3, 9.5~9.9_
+  - [x] 16.2 实现 HUD 状态栏
+    - 创建 src/ui/HUD.js
+    - AP/HP/回合数/圣物碎片数 + 道具图标列表（禁用灰色）+ HTML+Tailwind
+    - _需求: 3.4, 7.4, 13.13, 15.2, 15.3_
+  - [x] 16.3 实现 DialogManager 事件弹窗
+    - 创建 src/ui/DialogManager.js
+    - 事件弹窗/结算界面/失败界面，弹窗暂停游戏且在地图层级之上
+    - _需求: 6.6, 6.7, 7.7~7.9, 8.11_
+  - [x] 16.4 实现 UIManager 与功能按钮
+    - 创建 src/ui/UIManager.js
+    - 结束回合/导出存档（剪贴板+文件）/导入存档（粘贴+文件）/居中到玩家
+    - 布局自适应
+    - _需求: 10.1~10.3, 15.1~15.6_
+- [x] 17. 实现 GameLoop 与系统整合
+  - [x] 17.1 实现 GameLoop 状态机
+    - 创建 src/core/GameLoop.js
+    - INIT→PLAYING→EVENT_DIALOG→GAME_OVER→VICTORY
+    - 初始化子系统 + 注册 EventBus 监听
+    - _需求: 设计文档（架构）_
+  - [x] 17.2 串联核心游戏流程
+    - 移动流程：hex:click→canMoveTo→executeMove→扣AP→迷雾→事件→重绘
+    - 回合流程：endTurn→休息→过夜事件→startNewTurn→自动存档
+    - 通关：3圣物+传送门→结算；死亡：HP≤0→失败→自动存档恢复
+    - _需求: 7.1~7.10, 12.3_
+  - [x] 17.3 实现 main.js 游戏入口
+    - 创建 src/main.js
+    - 初始化 PixiJS→加载配置→GameLoop→检测自动存档→开始/继续
+    - 新游戏界面（地图尺寸、种子）
+    - _需求: 1.3, 10.5, 10.6_
+- [x] 18. 检查点 — 完整游戏流程验证
+  - 确保所有测试通过。浏览器打开 index.html 验证完整流程。如有问题请向用户确认。
+- [x] 19. 存档功能整合与通关/失败流程
+  - [x] 19.1 整合存档导入导出
+    - SaveSystem 与 UIManager 按钮连接 + 自动存档 + 启动检测
+    - _需求: 10.1~10.6_
+  - [x] 19.2 实现通关结算与失败界面
+    - 通关统计 + 重新开始/下一张地图；失败 + 自动存档恢复
+    - _需求: 7.7~7.10_
+  - [x]* 19.3 编写存档往返一致性集成测试
+    - 完整 GameState 导出→导入后状态等价
+    - _需求: 10.4, 用户要求（回归测试）_
+- [x] 20. 扩展接口预留与最终打磨
+  - [x] 20.1 预留战斗系统扩展接口
+    - EventSystem 战斗模块接口、PlayerState 防御/护甲接口、ItemSystem 规则改变 hook
+    - _需求: 6.4, 12.8, 12.13, 13.9_
+  - [x] 20.2 跨平台适配与响应式布局
+    - Canvas 自适应、触屏+鼠标、移动端 HUD 不遮挡
+    - _需求: 9.8, 9.9, 15.5, 15.6_
+- [x] 21. 最终检查点 — 全面验证
+  - 确保所有测试通过。完整体验一局游戏验证核心功能。如有问题请向用户确认。
+
+## 备注
+
+- 标记 `*` 的子任务为可选测试任务，可跳过以加速 MVP
+- 每个任务引用对应需求编号，便于追踪
+- 检查点用于阶段性验证，确保增量开发稳定
+- 测试使用自定义浏览器端运行器（tests/index.html），不依赖 npm
+- 任务 14 专门用于素材预览测试
+- 所有模块通过 EventBus 通信，避免直接依赖

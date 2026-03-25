@@ -1,0 +1,156 @@
+{
+  "terrainTypes": {
+    "grass": {
+      "name": "草地",
+      "baseCost": 1,
+      "requiredItem": null,
+      "restEffect": { "hpChange": 5, "apBonus": 0 },
+      "visionModifier": 0,
+      "overnightEventChance": 0.05,
+      "overnightEvents": ["wolf_attack", "stargazing"],
+      "enterDamage": 0,
+      "enterDamageChance": 0,
+      "statusOnEnter": null,
+      "statusOnEnterChance": 0,
+      "eventWeights": { "combat": 0.3, "treasure": 0.4, "choice": 0.3 },
+      "refreshChance": 0.02,
+      "sprites": {
+        "variants": ["assets/terrain/grass.png"],
+        "rule": "random",
+        "highElevation": {
+          "variants": ["assets/terrain/grass_snow.png"],
+          "rule": "random"
+        }
+      },
+      "elevationSpriteThreshold": 8
+    },
+    "desert": {
+      "name": "荒漠",
+      "baseCost": 1.5,
+      "requiredItem": null,
+      "restEffect": { "hpChange": 0, "apBonus": 0 },
+      "visionModifier": 1,
+      "overnightEventChance": 0.08,
+      "overnightEvents": ["sandstorm", "desert_merchant"],
+      "enterDamage": 0,
+      "enterDamageChance": 0,
+      "statusOnEnter": null,
+      "statusOnEnterChance": 0,
+      "eventWeights": { "combat": 0.2, "treasure": 0.3, "choice": 0.5 },
+      "refreshChance": 0.01,
+      "sprites": {
+        "variants": ["assets/terrain/desert.png"],
+        "rule": "random",
+        "highElevation": {
+          "variants": ["assets/terrain/desert_snow.png"],
+          "rule": "random"
+        }
+      },
+      "elevationSpriteThreshold": 8
+    },
+    "water": {
+      "name": "水域",
+      "baseCost": 1,
+      "requiredItem": "boat",
+      "restEffect": { "hpChange": 2, "apBonus": 0 },
+      "visionModifier": 1,
+      "overnightEventChance": 0.1,
+      "overnightEvents": ["sea_storm", "floating_crate"],
+      "enterDamage": 0,
+      "enterDamageChance": 0,
+      "statusOnEnter": null,
+      "statusOnEnterChance": 0,
+      "eventWeights": { "combat": 0.2, "treasure": 0.5, "choice": 0.3 },
+      "refreshChance": 0.03,
+      "sprites": {
+        "variants": ["assets/terrain/water.png"],
+        "rule": "random"
+      },
+      "elevationSpriteThreshold": null
+    },
+    "forest": {
+      "name": "森林",
+      "baseCost": 1.5,
+      "requiredItem": null,
+      "restEffect": { "hpChange": 8, "apBonus": 0 },
+      "visionModifier": -1,
+      "overnightEventChance": 0.12,
+      "overnightEvents": ["wolf_attack", "forest_spirit", "herb_discovery"],
+      "enterDamage": 0,
+      "enterDamageChance": 0,
+      "statusOnEnter": null,
+      "statusOnEnterChance": 0,
+      "eventWeights": { "combat": 0.4, "treasure": 0.3, "choice": 0.3 },
+      "refreshChance": 0.03,
+      "sprites": {
+        "variants": ["assets/terrain/forest.png"],
+        "rule": "random",
+        "highElevation": {
+          "variants": ["assets/terrain/forest.png"],
+          "rule": "random"
+        }
+      },
+      "elevationSpriteThreshold": 9
+    },
+    "swamp": {
+      "name": "沼泽",
+      "baseCost": 2,
+      "requiredItem": null,
+      "restEffect": { "hpChange": -5, "apBonus": 0, "statusEffect": "poison" },
+      "visionModifier": 0,
+      "overnightEventChance": 0.15,
+      "overnightEvents": ["swamp_creature", "will_o_wisp"],
+      "enterDamage": 0,
+      "enterDamageChance": 0,
+      "statusOnEnter": "poison",
+      "statusOnEnterChance": 0.2,
+      "eventWeights": { "combat": 0.5, "treasure": 0.2, "choice": 0.3 },
+      "refreshChance": 0.02,
+      "sprites": {
+        "variants": ["assets/terrain/swamp.png"],
+        "rule": "random"
+      },
+      "elevationSpriteThreshold": null
+    },
+    "lava": {
+      "name": "熔岩",
+      "baseCost": 2,
+      "requiredItem": "fire_boots",
+      "restEffect": { "hpChange": -15, "apBonus": 0 },
+      "visionModifier": 0,
+      "overnightEventChance": 0.2,
+      "overnightEvents": ["lava_eruption"],
+      "enterDamage": 20,
+      "enterDamageChance": 1.0,
+      "statusOnEnter": null,
+      "statusOnEnterChance": 0,
+      "eventWeights": { "combat": 0.3, "treasure": 0.5, "choice": 0.2 },
+      "refreshChance": 0.01,
+      "sprites": {
+        "variants": ["assets/terrain/lava.png"],
+        "rule": "random"
+      },
+      "elevationSpriteThreshold": null
+    },
+    "ice": {
+      "name": "浮冰",
+      "baseCost": 1,
+      "requiredItem": null,
+      "restEffect": { "hpChange": -3, "apBonus": 0 },
+      "visionModifier": 1,
+      "overnightEventChance": 0.1,
+      "overnightEvents": ["blizzard", "ice_crack"],
+      "enterDamage": 5,
+      "enterDamageChance": 0.15,
+      "statusOnEnter": "frostbite",
+      "statusOnEnterChance": 0.1,
+      "eventWeights": { "combat": 0.2, "treasure": 0.3, "choice": 0.5 },
+      "refreshChance": 0.01,
+      "sprites": {
+        "variants": ["assets/terrain/ice.png"],
+        "rule": "random"
+      },
+      "elevationSpriteThreshold": null
+    }
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "items": {
+    "rope_claw": {
+      "name": "钩爪",
+      "description": "坚固的钩爪，允许攀爬海拔差大于3的悬崖地形",
+      "quality": "rare",
+      "effects": [
+        { "type": "terrain_pass", "condition": "elevationDelta > 3" }
+      ],
+      "sprite": "assets/item/rope_claw.png"
+    },
+    "parachute": {
+      "name": "降落伞",
+      "description": "轻便的降落伞，免疫所有下坡摔伤并允许通过悬崖",
+      "quality": "rare",
+      "effects": [
+        { "type": "fall_immunity" },
+        { "type": "terrain_pass", "condition": "elevationDelta <= -4" }
+      ],
+      "sprite": "assets/item/parachute.png"
+    },
+    "boat": {
+      "name": "船只",
+      "description": "结实的小船，允许在水域中航行",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "terrain_pass", "terrainType": "water" }
+      ],
+      "sprite": "assets/item/boat.png"
+    },
+    "fire_boots": {
+      "name": "防火靴",
+      "description": "以火龙鳞片锻造的靴子，允许安全穿越熔岩地带",
+      "quality": "rare",
+      "effects": [
+        { "type": "terrain_pass", "terrainType": "lava" },
+        { "type": "enter_damage_immunity", "terrainType": "lava" }
+      ],
+      "sprite": "assets/item/fire_boots.png"
+    },
+    "telescope": {
+      "name": "望远镜",
+      "description": "精密的望远镜，永久增加2格视野范围",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "vision_bonus", "value": 2, "permanent": true }
+      ],
+      "sprite": "assets/item/telescope.png"
+    },
+    "leather_shoes": {
+      "name": "皮靴",
+      "description": "轻便耐用的皮靴，永久提升1点行动力上限",
+      "quality": "common",
+      "effects": [
+        { "type": "ap_max_bonus", "value": 1, "permanent": true }
+      ],
+      "sprite": "assets/item/leather_shoes.png"
+    },
+    "tent": {
+      "name": "帐篷",
+      "description": "便携帐篷，休息时额外回复10点生命值",
+      "quality": "common",
+      "effects": [
+        { "type": "rest_hp_bonus", "value": 10 }
+      ],
+      "sprite": "assets/item/tent.png"
+    },
+    "four_leaf_clover": {
+      "name": "四叶草",
+      "description": "传说中的幸运草，有概率免疫伤害（伤害越高概率越低）",
+      "quality": "epic",
+      "effects": [
+        { "type": "damage_immunity_chance", "formula": "max(0, 0.5 - damage * 0.01)" }
+      ],
+      "sprite": "assets/item/clover.png"
+    },
+    "antidote": {
+      "name": "解毒药",
+      "description": "万能解毒药，抵消中毒等负面状态效果",
+      "quality": "common",
+      "effects": [
+        { "type": "status_immunity", "statusId": "poison" }
+      ],
+      "sprite": "assets/item/antidote.png"
+    }
+  }
+}

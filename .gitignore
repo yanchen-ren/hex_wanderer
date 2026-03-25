@@ -1,0 +1,17 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+*.swp
+*.swo
+*~
+
+# Node (if ever added)
+node_modules/
+
+# Build artifacts
+dist/
+
+# Local dev
+.env

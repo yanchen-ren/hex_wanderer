@@ -1,0 +1,103 @@
+{
+  "buildingTypes": {
+    "lighthouse": {
+      "name": "灯塔",
+      "description": "高耸的灯塔照亮周围区域，增加附近地块的视野范围",
+      "effect": { "visionBonus": 3, "areaRadius": 3 },
+      "allowedTerrains": ["grass", "desert", "forest"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": null,
+      "sprite": "assets/building/lighthouse.png"
+    },
+    "camp": {
+      "name": "营地",
+      "description": "简易的野外营地，休息时可额外恢复体力和生命",
+      "effect": { "restApBonus": 2, "restHpBonus": 10 },
+      "allowedTerrains": ["grass", "forest", "desert"],
+      "adjacencyConstraints": { "forbidden": ["monster_camp"] },
+      "triggerEvent": null,
+      "sprite": "assets/building/camp.png"
+    },
+    "city": {
+      "name": "城市",
+      "description": "繁华的城镇，可以交易道具和获取情报",
+      "effect": { "restHpBonus": 15, "restApBonus": 1, "refreshSuppression": true },
+      "allowedTerrains": ["grass", "desert"],
+      "adjacencyConstraints": { "forbidden": ["monster_camp", "whirlpool"] },
+      "triggerEvent": "city_market",
+      "sprite": "assets/building/city.png"
+    },
+    "ruin": {
+      "name": "遗迹",
+      "description": "古老的遗迹中可能藏有宝物，也可能暗藏危险",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["grass", "desert", "forest", "swamp"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "ruin_explore",
+      "sprite": "assets/building/ruin.png"
+    },
+    "portal": {
+      "name": "传送门",
+      "description": "收集齐三件圣物碎片后，踏入传送门即可通关",
+      "effect": { "type": "win_condition" },
+      "allowedTerrains": ["grass", "desert"],
+      "adjacencyConstraints": { "forbidden": ["monster_camp"] },
+      "triggerEvent": null,
+      "sprite": "assets/building/portal.png"
+    },
+    "teleporter": {
+      "name": "传送阵",
+      "description": "神秘的传送阵，踏入后会被传送到配对的另一个传送阵",
+      "effect": { "type": "teleport" },
+      "allowedTerrains": ["grass", "desert", "forest"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": null,
+      "sprite": "assets/building/teleporter.png"
+    },
+    "cave": {
+      "name": "洞穴",
+      "description": "幽深的洞穴，内部可能藏有珍贵的道具或危险的怪物",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["grass", "desert", "forest"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "cave_explore",
+      "sprite": "assets/building/cave.png"
+    },
+    "farm": {
+      "name": "农田",
+      "description": "宁静的农田，休息时可恢复大量生命值",
+      "effect": { "restHpBonus": 20, "restApBonus": 0 },
+      "allowedTerrains": ["grass"],
+      "adjacencyConstraints": { "forbidden": ["lava", "monster_camp"] },
+      "triggerEvent": null,
+      "sprite": "assets/building/farm.png"
+    },
+    "mine": {
+      "name": "矿坑",
+      "description": "废弃的矿坑，探索后可能发现有价值的物品",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["grass", "desert"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "mine_explore",
+      "sprite": "assets/building/mine.png"
+    },
+    "monster_camp": {
+      "name": "怪物营地",
+      "description": "危险的怪物聚集地，进入后必定遭遇战斗",
+      "effect": { "type": "trigger_event", "eventRefreshBonus": 0.05, "eventRefreshRadius": 2 },
+      "allowedTerrains": ["grass", "forest", "swamp", "desert"],
+      "adjacencyConstraints": { "forbidden": ["city", "camp", "farm"] },
+      "triggerEvent": "monster_camp_battle",
+      "sprite": "assets/building/monster_camp.png"
+    },
+    "whirlpool": {
+      "name": "漩涡",
+      "description": "危险的水中漩涡，进入后会被随机传送到另一片水域",
+      "effect": { "type": "random_teleport_water" },
+      "allowedTerrains": ["water"],
+      "adjacencyConstraints": { "forbidden": ["city"] },
+      "triggerEvent": null,
+      "sprite": "assets/building/whirlpool.png"
+    }
+  }
+}

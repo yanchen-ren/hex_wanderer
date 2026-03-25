@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HexWanderer 地图预览</title>
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7/dist/pixi.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #1a1a2e; color: #eee; }
+    .controls {
+      padding: 10px 16px; background: #16213e; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+      border-bottom: 1px solid #2a2a4a; z-index: 20; position: relative;
+    }
+    .controls label { font-size: 13px; color: #aaa; }
+    .controls input, .controls select, .controls button {
+      padding: 5px 8px; border-radius: 4px; border: 1px solid #444; background: #2a2a4a; color: #eee; font-size: 13px;
+    }
+    .controls button { cursor: pointer; background: #4fc3f7; color: #111; font-weight: bold; border: none; }
+    .controls button:hover { background: #29b6f6; }
+    #pixi-container { width: 100%; height: calc(100vh - 46px); }
+    .legend {
+      position: fixed; bottom: 10px; left: 10px; background: rgba(22,33,62,0.92); padding: 8px 12px;
+      border-radius: 6px; font-size: 11px; z-index: 10;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; margin: 2px 0; }
+    .legend-color { width: 12px; height: 12px; border-radius: 2px; border: 1px solid #555; }
+    .info-panel {
+      position: fixed; top: 56px; right: 10px; background: rgba(22,33,62,0.95); padding: 10px 14px;
+      border-radius: 6px; font-size: 12px; z-index: 10; min-width: 160px; display: none;
+    }
+    .info-panel h3 { font-size: 13px; margin-bottom: 4px; }
+    .info-row { margin: 2px 0; color: #aaa; }
+    .info-row span { color: #eee; }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <label>种子: <input type="number" id="seed" value="42" style="width:70px"></label>
+    <label>尺寸:
+      <select id="size">
+        <option value="small">小 (25×25)</option>
+        <option value="medium" selected>中 (50×50)</option>
+        <option value="large">大 (75×75)</option>
+      </select>
+    </label>
+    <button id="generate">生成地图</button>
+    <button id="center">居中玩家</button>
+    <button id="fogToggleBtn">隐藏迷雾</button>
+    <span id="stats" style="font-size:11px;color:#888;"></span>
+    <span id="playerInfo" style="font-size:11px;color:#4fc3f7;margin-left:8px;"></span>
+  </div>
+  <div id="pixi-container"></div>
+  <div class="legend" id="legend"></div>
+  <div class="info-panel" id="info-panel">
+    <h3 id="info-title">地块信息</h3>
+    <div id="info-content"></div>
+  </div>
+
+  <script type="module">
+    import { MapGenerator } from '../src/map/MapGenerator.js';
+    import { HexMath } from '../src/utils/HexMath.js';
+
+    const HEX_SIZE = 18;
+    const SQRT3 = Math.sqrt(3);
+
+    // Offset hex to pixel (pointy-top, even-r offset)
+    // Add padding so row=0/col=0 hex centers are fully inside the render area
+    const PAD_X = SQRT3 * HEX_SIZE;
+    const PAD_Y = HEX_SIZE * 1.5;
+
+    function offsetToPixel(col, row, size, elevation) {
+      const w = SQRT3 * size;
+      const h = 2 * size;
+      const x = PAD_X + col * w + (row % 2 === 1 ? w / 2 : 0);
+      const baseY = PAD_Y + row * h * 0.75;
+      // Higher elevation = shift up (negative Y offset)
+      const elevOffset = elevation !== undefined ? -(elevation - 5) * 2 : 0;
+      const y = baseY + elevOffset;
+      return { x, y };
+    }
+
+    // Pixel to offset (for click detection — uses base Y without elevation offset)
+    function pixelToOffset(px, py, size) {
+      const w = SQRT3 * size;
+      const h = 2 * size;
+      // Try each candidate row and pick the closest hex center
+      const approxRow = Math.round((py - PAD_Y) / (h * 0.75));
+      let bestDist = Infinity, bestCol = 0, bestRow = 0;
+      for (let dr = -1; dr <= 1; dr++) {
+        const row = approxRow + dr;
+        const xOffset = (row % 2 === 1) ? w / 2 : 0;
+        const col = Math.round((px - PAD_X - xOffset) / w);
+        // Get the pixel position of this hex (use elevation 5 as neutral)
+        const hx = PAD_X + col * w + xOffset;
+        const hy = PAD_Y + row * h * 0.75;
+        const dist = (px - hx) ** 2 + (py - hy) ** 2;
+        if (dist < bestDist) {
+          bestDist = dist;
+          bestCol = col;
+          bestRow = row;
+        }
+      }
+      return { col: bestCol, row: bestRow };
+    }
+
+    const TERRAIN_COLORS = {
+      grass: 0x4caf50, desert: 0xd4a843, water: 0x2196f3,
+      forest: 0x2e7d32, swamp: 0x6d4c41, lava: 0xe53935, ice: 0xb3e5fc,
+    };
+
+    const BUILDING_MARKERS = {
+      portal: '🌀', teleporter: '⚡', lighthouse: '🗼', camp: '⛺',
+      city: '🏘️', ruin: '🏚️', cave: '🕳️', farm: '🌾', mine: '⛏️',
+      monster_camp: '👹', whirlpool: '🌊',
+    };
+
+    let terrainConfig, buildingConfig, itemConfig;
+    let currentMap = null, currentWidth = 0, currentHeight = 0;
+    let fogSystem = null, playerState = null, itemSystem = null;
+    let playerPos = { col: 0, row: 0 };
+    let selectedTile = null;
+    let fogEnabled = true;
+    let fogLayer = null;
+    let playerMarker = null;
+    let markersContainer = null;
+    // Fog state map: "col,row" → 'unexplored' | 'explored' | 'visible'
+    const fogState = new Map();
+
+    // Offset coordinate neighbors (pointy-top, even-r)
+    function offsetNeighbors(col, row) {
+      const isOdd = row % 2 === 1;
+      if (isOdd) {
+        return [
+          { col: col + 1, row: row },     // right
+          { col: col,     row: row - 1 },  // top-left
+          { col: col + 1, row: row - 1 },  // top-right
+          { col: col - 1, row: row },      // left
+          { col: col,     row: row + 1 },  // bottom-left
+          { col: col + 1, row: row + 1 },  // bottom-right
+        ];
+      } else {
+        return [
+          { col: col + 1, row: row },      // right
+          { col: col - 1, row: row - 1 },  // top-left
+          { col: col,     row: row - 1 },   // top-right
+          { col: col - 1, row: row },       // left
+          { col: col - 1, row: row + 1 },  // bottom-left
+          { col: col,     row: row + 1 },   // bottom-right
+        ];
+      }
+    }
+
+    // BFS to get all tiles within `range` steps using offset coordinates
+    function offsetHexesInRange(col, row, range) {
+      const visited = new Set();
+      const result = [];
+      const queue = [{ col, row, dist: 0 }];
+      visited.add(`${col},${row}`);
+      while (queue.length > 0) {
+        const cur = queue.shift();
+        result.push({ col: cur.col, row: cur.row });
+        if (cur.dist < range) {
+          for (const n of offsetNeighbors(cur.col, cur.row)) {
+            const key = `${n.col},${n.row}`;
+            if (!visited.has(key)) {
+              visited.add(key);
+              queue.push({ col: n.col, row: n.row, dist: cur.dist + 1 });
+            }
+          }
+        }
+      }
+      return result;
+    }
+
+    /**
+     * Vision uses BFS with "vision points" (VP).
+     * Base VP = 2. Each step costs 1 VP.
+     * Extra VP cost when passing through:
+     *   - A tile higher than the player (+1 per elevation difference)
+     *   - Forest terrain (+1)
+     * This allows vision to "turn corners" but gets blocked by mountains and forests.
+     */
+    function calculateVisibleTiles(col, row) {
+      const BASE_VP = 2;
+      const tile = currentMap.getTile(col, row);
+      if (!tile) return [{ col, row }];
+      const playerElev = tile.elevation;
+
+      const visited = new Map();
+      const result = [];
+      visited.set(`${col},${row}`, BASE_VP);
+      result.push({ col, row });
+
+      // First step: player's direct neighbors always visible, cost exactly 1 VP, no blocking
+      const directNbs = offsetNeighbors(col, row);
+      for (const nb of directNbs) {
+        const nbTile = currentMap.getTile(nb.col, nb.row);
+        if (!nbTile) continue;
+        const key = `${nb.col},${nb.row}`;
+        const vp = BASE_VP - 1;
+        visited.set(key, vp);
+        result.push({ col: nb.col, row: nb.row });
+      }
+
+      // Second+ steps: BFS from all direct neighbors, applying VP costs
+      const queue = [];
+      for (const nb of directNbs) {
+        const nbTile = currentMap.getTile(nb.col, nb.row);
+        if (!nbTile) continue;
+        const key = `${nb.col},${nb.row}`;
+        const vp = visited.get(key);
+
+        // Check if this neighbor blocks further vision
+        let passVP = vp;
+        const elevDiff = nbTile.elevation - playerElev;
+        if (elevDiff >= 3) passVP -= elevDiff;
+        if (nbTile.terrain === 'forest') passVP -= 0.5;
+
+        if (passVP > 0) {
+          queue.push({ col: nb.col, row: nb.row, vp: passVP });
+        }
+      }
+
+      while (queue.length > 0) {
+        const cur = queue.shift();
+        if (cur.vp <= 0) continue;
+
+        const nbs = offsetNeighbors(cur.col, cur.row);
+        for (const nb of nbs) {
+          const nbTile = currentMap.getTile(nb.col, nb.row);
+          if (!nbTile) continue;
+          const key = `${nb.col},${nb.row}`;
+
+          // VP cost depends on elevation change from CURRENT tile to NEXT tile (not player)
+          const curTile = currentMap.getTile(cur.col, cur.row);
+          const localElevDiff = nbTile.elevation - (curTile ? curTile.elevation : playerElev);
+          let seeVP;
+          if (localElevDiff < 0) {
+            seeVP = cur.vp - 0.5; // looking downhill from current tile: half cost
+          } else {
+            seeVP = cur.vp - 1; // same level or uphill: full cost
+          }
+          if (seeVP < 0) continue;
+
+          const prevVP = visited.get(key);
+          if (prevVP !== undefined && prevVP >= seeVP) continue;
+
+          visited.set(key, seeVP);
+          result.push({ col: nb.col, row: nb.row });
+
+          // Calculate pass-through cost (extra cost to continue beyond this tile)
+          let passVP = seeVP;
+          const cliffDiff = nbTile.elevation - playerElev;
+          if (cliffDiff >= 3) passVP -= cliffDiff;
+          if (nbTile.terrain === 'forest') passVP -= 0.5;
+
+          if (passVP > 0) {
+            queue.push({ col: nb.col, row: nb.row, vp: passVP });
+          }
+        }
+      }
+
+      return result;
+    }
+
+    function updateFogState(col, row) {
+      const visibleTiles = calculateVisibleTiles(col, row);
+
+      // Demote old visible to explored
+      for (const [key, state] of fogState) {
+        if (state === 'visible') fogState.set(key, 'explored');
+      }
+
+      // Set new visible
+      for (const h of visibleTiles) {
+        const tile = currentMap.getTile(h.col, h.row);
+        if (tile) fogState.set(`${h.col},${h.row}`, 'visible');
+      }
+    }
+
+    function getFogState(col, row) {
+      return fogState.get(`${col},${row}`) ?? 'unexplored';
+    }
+
+    // Sprite textures (loaded from assets)
+    const spriteTextures = {};
+    const SPRITE_FILES = {
+      grass: '../assets/terrain/grass.png',
+      grass_snow: '../assets/terrain/grass_snow.png',
+      desert: '../assets/terrain/desert.png',
+      desert_snow: '../assets/terrain/desert_snow.png',
+      water: '../assets/terrain/water.png',
+    };
+    // Elevation threshold for snow variants
+    const SNOW_THRESHOLD = 8;
+
+    async function loadSprites() {
+      for (const [key, path] of Object.entries(SPRITE_FILES)) {
+        try {
+          spriteTextures[key] = await PIXI.Assets.load(path);
+        } catch (_) { /* not available, will use color fallback */ }
+      }
+    }
+
+    // Get the right texture for a terrain + elevation combo
+    function getTerrainTexture(terrain, elevation) {
+      // Check for snow variant at high elevation
+      if (elevation >= SNOW_THRESHOLD) {
+        const snowKey = terrain + '_snow';
+        if (spriteTextures[snowKey]) return spriteTextures[snowKey];
+      }
+      return spriteTextures[terrain] || null;
+    }
+
+    // Pre-generate hex-clipped textures from sprite textures
+    const hexClippedTextures = {};
+
+    function createHexClippedTexture(sourceTexture, size, tint) {
+      const container = new PIXI.Container();
+      const sprite = new PIXI.Sprite(sourceTexture);
+      sprite.anchor.set(0.5);
+      sprite.x = size;
+      sprite.y = size;
+      sprite.width = size * 2;
+      sprite.height = size * 2;
+      if (tint !== undefined) sprite.tint = tint;
+
+      const maskG = new PIXI.Graphics();
+      maskG.beginFill(0xffffff);
+      maskG.drawPolygon(hexPoints(size, size, size));
+      maskG.endFill();
+      container.addChild(maskG);
+      sprite.mask = maskG;
+      container.addChild(sprite);
+
+      return app.renderer.generateTexture(container, {
+        resolution: 2,
+        region: new PIXI.Rectangle(0, 0, size * 2, size * 2)
+      });
+    }
+
+    // Build cached hex textures for each terrain+elevation combo
+    function buildHexTextureCache() {
+      hexClippedTextures.length = 0; // clear
+      for (const [key, tex] of Object.entries(spriteTextures)) {
+        for (let elev = 0; elev <= 10; elev++) {
+          const factor = 0.55 + (elev / 10) * 0.5;
+          const tintVal = Math.min(255, (factor * 255) | 0);
+          const tint = (tintVal << 16) | (tintVal << 8) | tintVal;
+          const cacheKey = `${key}_e${elev}`;
+          hexClippedTextures[cacheKey] = createHexClippedTexture(tex, HEX_SIZE, tint);
+        }
+      }
+    }
+
+    function getCachedHexTexture(terrain, elevation) {
+      // Check snow variant
+      if (elevation >= SNOW_THRESHOLD) {
+        const snowKey = `${terrain}_snow_e${elevation}`;
+        if (hexClippedTextures[snowKey]) return hexClippedTextures[snowKey];
+      }
+      const key = `${terrain}_e${elevation}`;
+      return hexClippedTextures[key] || null;
+    }
+
+    // PixiJS
+    const pixiContainer = document.getElementById('pixi-container');
+    const app = new PIXI.Application({ resizeTo: pixiContainer, backgroundColor: 0x0f0f23, antialias: true });
+    pixiContainer.appendChild(app.view);
+
+    const mapContainer = new PIXI.Container();
+    app.stage.addChild(mapContainer);
+
+    // Camera
+    let isDragging = false, didDrag = false;
+    let dragStart = { x: 0, y: 0 };
+
+    app.view.addEventListener('pointerdown', (e) => {
+      isDragging = true; didDrag = false;
+      dragStart = { x: e.clientX - mapContainer.x, y: e.clientY - mapContainer.y };
+    });
+    window.addEventListener('pointermove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - dragStart.x - mapContainer.x;
+      const dy = e.clientY - dragStart.y - mapContainer.y;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) didDrag = true;
+      mapContainer.x = e.clientX - dragStart.x;
+      mapContainer.y = e.clientY - dragStart.y;
+    });
+    window.addEventListener('pointerup', () => { isDragging = false; });
+
+    app.view.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      const oldScale = mapContainer.scale.x;
+      const newScale = Math.max(0.1, Math.min(3, oldScale * factor));
+      const rect = app.view.getBoundingClientRect();
+      const mx = e.clientX - rect.left;
+      const my = e.clientY - rect.top;
+      mapContainer.x = mx - (mx - mapContainer.x) * (newScale / oldScale);
+      mapContainer.y = my - (my - mapContainer.y) * (newScale / oldScale);
+      mapContainer.scale.set(newScale);
+    }, { passive: false });
+
+    // Draw hex points (pointy-top)
+    function hexPoints(cx, cy, size) {
+      const pts = [];
+      for (let i = 0; i < 6; i++) {
+        const angle = (Math.PI / 180) * (60 * i - 30);
+        pts.push(cx + size * Math.cos(angle), cy + size * Math.sin(angle));
+      }
+      return pts;
+    }
+
+    function elevColor(baseColor, elevation) {
+      const factor = 0.5 + (elevation / 10) * 0.6;
+      const r = Math.min(255, ((baseColor >> 16) & 0xff) * factor) | 0;
+      const g = Math.min(255, ((baseColor >> 8) & 0xff) * factor) | 0;
+      const b = Math.min(255, (baseColor & 0xff) * factor) | 0;
+      return (r << 16) | (g << 8) | b;
+    }
+
+    function renderMap(map, width, height) {
+      mapContainer.removeChildren();
+
+      // Render terrain to a single static texture
+      const tempContainer = new PIXI.Container();
+      const g = new PIXI.Graphics();
+      tempContainer.addChild(g);
+      const spriteLayer = new PIXI.Container();
+      tempContainer.addChild(spriteLayer);
+      const shadowLayer = new PIXI.Graphics();
+      tempContainer.addChild(shadowLayer);
+
+      for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+          const tile = map.getTile(col, row);
+          if (!tile) continue;
+          const pos = offsetToPixel(col, row, HEX_SIZE, tile.elevation);
+          const cachedTex = getCachedHexTexture(tile.terrain, tile.elevation);
+          if (cachedTex) {
+            const s = new PIXI.Sprite(cachedTex);
+            s.anchor.set(0.5); s.x = pos.x; s.y = pos.y;
+            spriteLayer.addChild(s);
+            g.lineStyle(0.5, 0x1a1a2e, 0.2);
+            g.beginFill(0, 0);
+            g.drawPolygon(hexPoints(pos.x, pos.y, HEX_SIZE));
+            g.endFill();
+          } else {
+            const base = TERRAIN_COLORS[tile.terrain] || 0x888888;
+            const color = elevColor(base, tile.elevation);
+            g.beginFill(color);
+            g.lineStyle(0.5, 0x1a1a2e, 0.3);
+            g.drawPolygon(hexPoints(pos.x, pos.y, HEX_SIZE));
+            g.endFill();
+          }
+
+          // Elevation shadow edges: draw dark lines on edges where neighbor is lower
+          const nbs = offsetNeighbors(col, row);
+          for (let dir = 0; dir < 6; dir++) {
+            const nb = nbs[dir];
+            const nbTile = map.getTile(nb.col, nb.row);
+            if (!nbTile) continue;
+            const elevDiff = tile.elevation - nbTile.elevation;
+            if (elevDiff > 0) {
+              const alpha = Math.min(0.6, elevDiff * 0.12);
+              const thickness = Math.min(2.5, elevDiff * 0.5);
+              shadowLayer.lineStyle(thickness, 0x000000, alpha);
+              const a1 = (Math.PI / 180) * (60 * dir - 30);
+              const a2 = (Math.PI / 180) * (60 * (dir + 1) - 30);
+              shadowLayer.moveTo(pos.x + HEX_SIZE * Math.cos(a1), pos.y + HEX_SIZE * Math.sin(a1));
+              shadowLayer.lineTo(pos.x + HEX_SIZE * Math.cos(a2), pos.y + HEX_SIZE * Math.sin(a2));
+            }
+          }
+        }
+      }
+
+      const mapW = PAD_X * 2 + SQRT3 * HEX_SIZE * width;
+      const mapH = PAD_Y * 2 + 1.5 * HEX_SIZE * height;
+      const renderTex = PIXI.RenderTexture.create({ width: mapW, height: mapH, resolution: 2 });
+      app.renderer.render(tempContainer, { renderTexture: renderTex });
+      tempContainer.destroy({ children: true });
+      const mapSprite = new PIXI.Sprite(renderTex);
+      mapContainer.addChild(mapSprite);
+
+      // Markers layer
+      markersContainer = new PIXI.Container();
+      mapContainer.addChild(markersContainer);
+      updateMarkers(map, width, height);
+
+      // Fog layer (on top of everything)
+      fogLayer = new PIXI.Graphics();
+      mapContainer.addChild(fogLayer);
+      updateFogLayer(map, width, height);
+
+      // Stats
+      const allTiles = map.getAllTiles();
+      const buildings = allTiles.filter(t => t.building).length;
+      const events = allTiles.filter(t => t.event).length;
+      document.getElementById('stats').textContent =
+        `地块: ${width * height} | 建筑: ${buildings} | 事件: ${events}`;
+      updatePlayerInfo();
+    }
+
+    function updateMarkers(map, width, height) {
+      if (!markersContainer) return;
+      markersContainer.removeChildren();
+
+      for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+          const tile = map.getTile(col, row);
+          if (!tile) continue;
+
+          // Only show markers for visible tiles (if fog enabled)
+          if (fogEnabled) {
+            const vis = getFogState(col, row);
+            if (vis !== 'visible') continue;
+          }
+
+          const pos = offsetToPixel(col, row, HEX_SIZE, tile.elevation);
+
+          if (tile.building) {
+            const emoji = BUILDING_MARKERS[tile.building] || '🏗️';
+            const t = new PIXI.Text(emoji, { fontSize: HEX_SIZE * 0.7 });
+            t.anchor.set(0.5); t.x = pos.x; t.y = pos.y - 2;
+            markersContainer.addChild(t);
+          }
+
+          if (tile.event) {
+            let emoji = '❓';
+            if (tile.event.startsWith('item_pickup_')) emoji = '🎁';
+            const t = new PIXI.Text(emoji, { fontSize: HEX_SIZE * 0.5 });
+            t.anchor.set(0.5); t.x = pos.x; t.y = pos.y + HEX_SIZE * 0.3;
+            markersContainer.addChild(t);
+          }
+        }
+      }
+
+      // Player marker
+      const playerTile = map.getTile(playerPos.col, playerPos.row);
+      const spawnPos = offsetToPixel(playerPos.col, playerPos.row, HEX_SIZE, playerTile?.elevation);
+      playerMarker = new PIXI.Text('🧑', { fontSize: HEX_SIZE * 1.1 });
+      playerMarker.anchor.set(0.5);
+      playerMarker.x = spawnPos.x;
+      playerMarker.y = spawnPos.y;
+      markersContainer.addChild(playerMarker);
+
+      // Selected tile highlight
+      if (selectedTile) {
+        const selTile = map.getTile(selectedTile.col, selectedTile.row);
+        const selPos = offsetToPixel(selectedTile.col, selectedTile.row, HEX_SIZE, selTile?.elevation);
+        const highlight = new PIXI.Graphics();
+        highlight.lineStyle(2, 0xffeb3b, 0.8);
+        highlight.drawPolygon(hexPoints(selPos.x, selPos.y, HEX_SIZE));
+        markersContainer.addChild(highlight);
+      }
+    }
+
+    function updateFogLayer(map, width, height) {
+      if (!fogLayer) return;
+      fogLayer.clear();
+      if (!fogEnabled) return;
+
+      const fogHexSize = HEX_SIZE + 1;
+      for (let row = 0; row < height; row++) {
+        for (let col = 0; col < width; col++) {
+          const tile = map.getTile(col, row);
+          if (!tile) continue;
+          const vis = getFogState(col, row);
+          if (vis === 'visible') continue;
+
+          const pos = offsetToPixel(col, row, HEX_SIZE, tile.elevation);
+          const alpha = vis === 'unexplored' ? 1.0 : 0.5;
+          fogLayer.beginFill(0x0f0f23, alpha);
+          fogLayer.lineStyle(0);
+          fogLayer.drawPolygon(hexPoints(pos.x, pos.y, fogHexSize));
+          fogLayer.endFill();
+        }
+      }
+    }
+
+    function movePlayer(col, row) {
+      playerPos = { col, row };
+      selectedTile = null;
+
+      // Update fog using offset-based calculation
+      updateFogState(col, row);
+
+      // Refresh markers and fog
+      updateMarkers(currentMap, currentWidth, currentHeight);
+      updateFogLayer(currentMap, currentWidth, currentHeight);
+      updatePlayerInfo();
+    }
+
+    function updatePlayerInfo() {
+      const tile = currentMap ? currentMap.getTile(playerPos.col, playerPos.row) : null;
+      const terrain = tile ? tile.terrain : '?';
+      const elev = tile ? tile.elevation : '?';
+      document.getElementById('playerInfo').textContent =
+        `玩家: (${playerPos.col},${playerPos.row}) | 地形: ${terrain} | 海拔: ${elev}`;
+    }
+
+    function isNeighbor(col1, row1, col2, row2) {
+      // For offset coordinates, neighbor check depends on row parity
+      const dx = col2 - col1;
+      const dy = row2 - row1;
+      if (dy === 0) return Math.abs(dx) === 1;
+      if (Math.abs(dy) === 1) {
+        if (row1 % 2 === 0) return dx === 0 || dx === -1;
+        else return dx === 0 || dx === 1;
+      }
+      return false;
+    }
+
+    // Click: select tile or move player
+    app.view.addEventListener('click', (e) => {
+      if (didDrag) return;
+      const rect = app.view.getBoundingClientRect();
+      const worldX = (e.clientX - rect.left - mapContainer.x) / mapContainer.scale.x;
+      const worldY = (e.clientY - rect.top - mapContainer.y) / mapContainer.scale.y;
+      const { col, row } = pixelToOffset(worldX, worldY, HEX_SIZE);
+      if (!currentMap) return;
+      const tile = currentMap.getTile(col, row);
+      if (!tile) return;
+
+      const panel = document.getElementById('info-panel');
+
+      // If clicking the already-selected adjacent tile, move there
+      if (selectedTile && selectedTile.col === col && selectedTile.row === row
+          && isNeighbor(playerPos.col, playerPos.row, col, row)) {
+        movePlayer(col, row);
+        panel.style.display = 'none';
+        return;
+      }
+
+      // Select the tile
+      selectedTile = { col, row };
+      const isAdj = isNeighbor(playerPos.col, playerPos.row, col, row);
+
+      panel.style.display = 'block';
+      document.getElementById('info-title').textContent = `(${col}, ${row})`;
+      document.getElementById('info-content').innerHTML = `
+        <div class="info-row">地形: <span>${tile.terrain}</span></div>
+        <div class="info-row">海拔: <span>${tile.elevation}</span></div>
+        <div class="info-row">建筑: <span>${tile.building || '无'}</span></div>
+        <div class="info-row">事件: <span>${tile.event || '无'}</span></div>
+        ${isAdj ? '<div class="info-row" style="color:#4fc3f7;">👆 再次点击移动到此地块</div>' : ''}
+      `;
+
+      // Update highlight
+      updateMarkers(currentMap, currentWidth, currentHeight);
+      updateFogLayer(currentMap, currentWidth, currentHeight);
+    });
+
+    function centerMap() {
+      if (!currentMap) return;
+      const tile = currentMap.getTile(playerPos.col, playerPos.row);
+      const pos = offsetToPixel(playerPos.col, playerPos.row, HEX_SIZE, tile?.elevation);
+      const scale = mapContainer.scale.x;
+      mapContainer.x = app.view.width / 2 - pos.x * scale;
+      mapContainer.y = app.view.height / 2 - pos.y * scale;
+    }
+
+    function buildLegend() {
+      const legend = document.getElementById('legend');
+      legend.innerHTML = '<div style="font-weight:bold;margin-bottom:4px;">地形 (深=低海拔 浅=高海拔)</div>';
+      for (const [terrain, color] of Object.entries(TERRAIN_COLORS)) {
+        const hasSprite = !!spriteTextures[terrain];
+        if (hasSprite) {
+          legend.innerHTML += `<div class="legend-item"><img src="../assets/terrain/${terrain}.png" style="width:14px;height:14px;border-radius:2px;border:1px solid #555;object-fit:cover;">${terrain}</div>`;
+        } else {
+          const hex = '#' + color.toString(16).padStart(6, '0');
+          legend.innerHTML += `<div class="legend-item"><div class="legend-color" style="background:${hex}"></div>${terrain}</div>`;
+        }
+      }
+      legend.innerHTML += '<div style="margin-top:6px;font-weight:bold;">标记</div>';
+      legend.innerHTML += '<div class="legend-item">🧑 出生点 🎁 道具 ❓ 事件</div>';
+    }
+
+    async function init() {
+      try {
+        terrainConfig = await (await fetch('../config/terrain.json')).json();
+        buildingConfig = await (await fetch('../config/building.json')).json();
+        itemConfig = await (await fetch('../config/item.json')).json();
+      } catch (e) {
+        document.getElementById('stats').textContent = '配置加载失败';
+        return;
+      }
+      await loadSprites();
+      buildHexTextureCache();
+      buildLegend();
+      generateAndRender();
+    }
+
+    function generateAndRender() {
+      const seed = parseInt(document.getElementById('seed').value) || 42;
+      const size = document.getElementById('size').value;
+      const gen = new MapGenerator(seed, size, terrainConfig, buildingConfig, itemConfig);
+      currentMap = gen.generate();
+      currentWidth = gen.width;
+      currentHeight = gen.height;
+
+      // Initialize player at center
+      playerPos = { col: Math.floor(gen.width / 2), row: Math.floor(gen.height / 2) };
+      selectedTile = null;
+
+      // Initialize fog
+      fogState.clear();
+      updateFogState(playerPos.col, playerPos.row);
+
+      renderMap(currentMap, gen.width, gen.height);
+      centerMap();
+    }
+
+    document.getElementById('generate').addEventListener('click', generateAndRender);
+    document.getElementById('center').addEventListener('click', centerMap);
+    document.getElementById('fogToggleBtn').addEventListener('click', () => {
+      fogEnabled = !fogEnabled;
+      document.getElementById('fogToggleBtn').textContent = fogEnabled ? '隐藏迷雾' : '显示迷雾';
+      if (currentMap) {
+        updateMarkers(currentMap, currentWidth, currentHeight);
+        updateFogLayer(currentMap, currentWidth, currentHeight);
+      }
+    });
+    init();
+  </script>
+</body>
+</html>
