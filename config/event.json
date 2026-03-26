@@ -3162,7 +3162,7 @@
           "text": "交换",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "sacrifice_item", "message": "你和旅行者交换了物品，希望这笔交易值得。" } }
+            { "probability": 1.0, "result": { "type": "exchange_item", "message": "你和旅行者交换了物品，希望这笔交易值得。" } }
           ]
         },
         {

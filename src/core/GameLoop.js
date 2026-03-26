@@ -417,7 +417,38 @@ export class GameLoop {
       }
     }
 
-    if (result.message && result.type !== 'win_condition' && result.type !== 'teleport' && result.type !== 'trigger_event') {
+    // --- Random teleport water (whirlpool) ---
+    if (result.type === 'random_teleport_water') {
+      const allTiles = this.mapData.getAllTiles();
+      const waterTiles = allTiles.filter(t =>
+        t.terrain === 'water' &&
+        !(t.q === col && t.r === row) &&
+        (!t.building || t.building !== 'whirlpool')
+      );
+      if (waterTiles.length > 0) {
+        const target = waterTiles[Math.floor(Math.random() * waterTiles.length)];
+        this.playerState.position = { q: target.q, r: target.r };
+        this._updateFogOffset(target.q, target.r);
+        this.renderEngine.updatePlayerPosition(target.q, target.r);
+        await this.renderEngine.centerOnTile(target.q, target.r);
+        this.eventBus.emit('ui:toast', `🌀 漩涡将你卷到了 (${target.q}, ${target.r})`);
+        // Check events/buildings at destination
+        const destTile = this.mapData.getTile(target.q, target.r);
+        if (destTile) {
+          if (destTile.building && destTile.building !== 'whirlpool') {
+            await this._handleBuilding(destTile, target.q, target.r);
+          }
+          if (destTile.event && !destTile.building) {
+            await this._handleTileEvent(destTile, target.q, target.r);
+          }
+        }
+      } else {
+        this.eventBus.emit('ui:toast', '🌀 漩涡翻涌，但没有将你带走');
+      }
+      this._updateHUD();
+    }
+
+    if (result.message && result.type !== 'win_condition' && result.type !== 'teleport' && result.type !== 'trigger_event' && result.type !== 'passive_ap_restore' && result.type !== 'random_teleport_water') {
       this.eventBus.emit('ui:toast', `🏗️ ${result.message}`);
     }
   }
@@ -472,6 +503,26 @@ export class GameLoop {
       });
     }
 
+    // Antidote follow-up: if player got poisoned and has antidote, offer to use it
+    if (this.playerState.hasStatusEffect('poison') && this.itemSystem.hasItem('antidote')) {
+      const useAntidote = await this.uiManager.dialog.showEvent({
+        title: '🧪 解毒药',
+        description: '你中毒了！你身上携带着解毒药，是否使用？',
+        choices: [
+          { text: '使用解毒药（消耗）' },
+          { text: '先不用' },
+        ],
+      });
+      if (useAntidote === 0) {
+        this.itemSystem.consumeItem('antidote');
+        this.playerState.removeStatusEffect('poison');
+        await this.uiManager.dialog.showResult({
+          message: '你服用了解毒药，毒素被清除了！',
+          effects: ['🧪 消耗: 解毒药', '✨ 解除状态: 中毒'],
+        });
+      }
+    }
+
     // Show combination dialog if a combination happened during the event
     if (this._pendingCombination) {
       const combo = this._pendingCombination;
@@ -490,10 +541,11 @@ export class GameLoop {
     }
 
     // Remove event from tile — but keep if:
-    // 1. Repeatable building event
+    // 1. Repeatable building event (repeatable: true in building config)
     // 2. Relic events where player didn't get the fragment yet
+    // 3. Overnight/synthetic events — don't touch the real tile
     const actualTile = this.mapData.getTile(col, row);
-    if (actualTile) {
+    if (actualTile && !tile._isOvernightEvent) {
       const buildingDef = actualTile.building
         ? this.buildingSystem.getBuildingDef(actualTile.building)
         : null;
@@ -656,8 +708,12 @@ export class GameLoop {
     }
 
     if (outcome.type === 'relic_fragment') {
-      this.playerState.relicsCollected += 1;
-      effects.push(`💎 圣物碎片 (${this.playerState.relicsCollected}/3)`);
+      if (this.playerState.relicsCollected < 3) {
+        this.playerState.relicsCollected += 1;
+        effects.push(`💎 圣物碎片 (${this.playerState.relicsCollected}/3)`);
+      } else {
+        effects.push('💎 你已经收集了所有圣物碎片');
+      }
     }
 
     if (outcome.type === 'status_effect') {
@@ -677,7 +733,7 @@ export class GameLoop {
       const radius = outcome.radius || 5;
       const pCol = this.playerState.position.q;
       const pRow = this.playerState.position.r;
-      this._revealArea(pCol, pRow, radius);
+      this._revealArea(pCol, pRow, radius, outcome.permanent !== false);
       this.renderEngine.updateFogLayer();
       effects.push(`🗺️ 揭开了周围${radius}格的迷雾`);
     }
@@ -872,6 +928,51 @@ export class GameLoop {
       }
     }
 
+    if (outcome.type === 'exchange_item') {
+      const inventory = this.itemSystem.getInventory();
+      // Filter out non-exchangeable items (legendary, combination results)
+      const exchangeable = inventory.filter(item => {
+        const def = this.configs.item?.items?.[item.itemId];
+        return def && def.quality !== 'legendary' && !def.combination;
+      });
+      if (exchangeable.length > 0) {
+        // Pick a random item to give away
+        const giveItem = exchangeable[Math.floor(Math.random() * exchangeable.length)];
+        const giveDef = this.configs.item?.items?.[giveItem.itemId];
+        const giveQuality = giveDef?.quality ?? 'common';
+        this.itemSystem.consumeItem(giveItem.itemId);
+        effects.push(`🔄 交出: ${giveDef?.name || giveItem.itemId}`);
+
+        // Pick a random item of same or adjacent quality to receive
+        const allItems = Object.entries(this.configs.item?.items ?? {});
+        const qualityOrder = ['common', 'uncommon', 'rare', 'epic'];
+        const giveIdx = qualityOrder.indexOf(giveQuality);
+        const minIdx = Math.max(0, giveIdx - 1);
+        const maxIdx = Math.min(qualityOrder.length - 1, giveIdx + 1);
+        const validQualities = qualityOrder.slice(minIdx, maxIdx + 1);
+        const candidates = allItems.filter(([id, def]) =>
+          validQualities.includes(def.quality ?? 'common') &&
+          !this.itemSystem.hasItem(id) &&
+          id !== giveItem.itemId &&
+          def.quality !== 'legendary' &&
+          !def.combination
+        );
+        if (candidates.length > 0) {
+          const [receiveId, receiveDef] = candidates[Math.floor(Math.random() * candidates.length)];
+          this.itemSystem.addItem(receiveId);
+          effects.push(`🎁 获得: ${receiveDef?.name || receiveId}`);
+        } else {
+          // No suitable item to give — compensate with gold
+          const qualityRewards = { common: 15, uncommon: 30, rare: 60, epic: 120 };
+          const gold = qualityRewards[giveQuality] ?? 15;
+          this.playerState.gold += gold;
+          effects.push(`🪙 旅行者没有合适的物品，给了你 ${gold} 金币`);
+        }
+      } else {
+        effects.push('你没有可以交换的物品');
+      }
+    }
+
     return effects;
   }
 
@@ -907,7 +1008,7 @@ export class GameLoop {
     const apBeforeOvernight = this.playerState.ap;
     const overnightEventIds = this.turnSystem._rollOvernightEvents ? this.turnSystem._rollOvernightEvents(tileData) : [];
     for (const evtId of overnightEventIds) {
-      const overnightTile = { ...tileData, event: evtId };
+      const overnightTile = { ...tileData, event: evtId, _isOvernightEvent: true };
       await this._handleTileEvent(overnightTile, pCol, pRow);
       if (this.state !== STATES.PLAYING) return;
       if (this.playerState.hp <= 0) {
@@ -1073,6 +1174,7 @@ export class GameLoop {
       },
       map: this.mapData.toJSON(),
       fog: this.fogSystem.toJSON(),
+      permanentlyRevealed: this._permanentlyRevealed ? [...this._permanentlyRevealed] : [],
     };
   }
 
@@ -1095,11 +1197,13 @@ export class GameLoop {
     const visibleTiles = this._calculateVisibleTilesOffset(col, row);
     const newVisibleKeys = new Set(visibleTiles.map(h => `${h.col},${h.row}`));
 
-    // Demote old visible to explored
+    // Demote old visible to explored (skip permanently revealed tiles)
     const allTiles = this.mapData.getAllTiles();
+    const permRevealed = this._permanentlyRevealed;
     for (const t of allTiles) {
       const key = `${t.q},${t.r}`;
       if (this.fogSystem.getTileVisibility(t.q, t.r) === 'visible' && !newVisibleKeys.has(key)) {
+        if (permRevealed && permRevealed.has(key)) continue;
         this.fogSystem._fogState.set(key, 'explored');
       }
     }
@@ -1253,7 +1357,7 @@ export class GameLoop {
   /**
    * Reveal an area around a position (for reveal_map event effect)
    */
-  _revealArea(col, row, radius) {
+  _revealArea(col, row, radius, permanent = false) {
     const queue = [{ col, row, dist: 0 }];
     const visited = new Set();
     visited.add(`${col},${row}`);
@@ -1263,9 +1367,16 @@ export class GameLoop {
       const tile = this.mapData.getTile(cur.col, cur.row);
       if (tile) {
         const key = `${cur.col},${cur.row}`;
-        const current = this.fogSystem.getTileVisibility(cur.col, cur.row);
-        if (current === 'unexplored') {
-          this.fogSystem._fogState.set(key, 'explored');
+        if (permanent) {
+          // Set to visible and mark as permanently revealed
+          this.fogSystem._fogState.set(key, 'visible');
+          if (!this._permanentlyRevealed) this._permanentlyRevealed = new Set();
+          this._permanentlyRevealed.add(key);
+        } else {
+          const current = this.fogSystem.getTileVisibility(cur.col, cur.row);
+          if (current === 'unexplored') {
+            this.fogSystem._fogState.set(key, 'explored');
+          }
         }
       }
       if (cur.dist < radius) {

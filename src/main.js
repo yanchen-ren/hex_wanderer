@@ -201,6 +201,11 @@ async function startFromSave(savedState, saveSystem) {
     mapData, configs, seed, mapSize,
   });
 
+  // Restore permanently revealed tiles (lighthouse etc.)
+  if (Array.isArray(savedState.permanentlyRevealed) && savedState.permanentlyRevealed.length > 0) {
+    gameLoop._permanentlyRevealed = new Set(savedState.permanentlyRevealed);
+  }
+
   gameLoop.start();
 
   _wireGameEvents(saveSystem);

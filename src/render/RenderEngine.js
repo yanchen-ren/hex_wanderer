@@ -186,13 +186,15 @@ export class RenderEngine {
           }
           const mPath = AssetLoader.getMarkerPath(markerType);
           const mTex = mPath ? this.assetLoader.getTexture(mPath) : null;
+          const isWater = tile.terrain === 'water' || tile.terrain === 'ice';
+          const markerYOff = isWater ? -this.hexSize * 0.05 : this.hexSize * 0.3;
           if (mTex) {
             const s = new PIXI.Sprite(mTex);
             s.anchor.set(0.5);
             s.width = markerSize * 0.7;
             s.height = markerSize * 0.7;
             s.x = pos.x;
-            s.y = pos.y + this.hexSize * 0.3;
+            s.y = pos.y + markerYOff;
             this.layers.entities.addChild(s);
           } else {
             let emoji = '❓';
@@ -202,7 +204,7 @@ export class RenderEngine {
             const s = new PIXI.Sprite(tex);
             s.anchor.set(0.5);
             s.x = pos.x;
-            s.y = pos.y + this.hexSize * 0.3;
+            s.y = pos.y + markerYOff;
             this.layers.entities.addChild(s);
           }
         }
