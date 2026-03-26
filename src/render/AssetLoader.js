@@ -17,11 +17,21 @@ const TERRAIN_COLORS = {
   ice:    0xb3e5fc,
 };
 
-/** Default building emoji markers */
+/** UI marker sprite paths */
+const UI_MARKERS = {
+  player: 'assets/ui/player.png',
+  event: 'assets/ui/event_marker.png',
+  monster: 'assets/ui/monster_marker.png',
+  treasure: 'assets/ui/treature_marker.png',
+};
 const BUILDING_EMOJI = {
   portal: '🌀', teleporter: '⚡', lighthouse: '🗼', camp: '⛺',
   city: '🏘️', ruin: '🏚️', cave: '🕳️', farm: '🌾', mine: '⛏️',
-  monster_camp: '👹', whirlpool: '🌊',
+  monster_camp: '👹', whirlpool: '🌊', church: '⛪', watchtower: '🔭',
+  reef: '🪸', training_ground: '🏋️', altar: '🪨', spring: '💧',
+  wishing_well: '🪙', phone_booth: '📞', food_truck: '🍔',
+  bonfire: '🔥', hollow_tree: '🌳', colossus_hand: '✋',
+  vending_machine: '🥫', village: '🏡',
 };
 
 export class AssetLoader {
@@ -44,6 +54,11 @@ export class AssetLoader {
   /** Get fallback emoji for a building type */
   static getBuildingEmoji(buildingType) {
     return BUILDING_EMOJI[buildingType] ?? '🏗️';
+  }
+
+  /** Get UI marker sprite path by marker type */
+  static getMarkerPath(markerType) {
+    return UI_MARKERS[markerType] ?? null;
   }
 
   /** Whether all requested assets have been loaded (or attempted) */
@@ -94,6 +109,7 @@ export class AssetLoader {
         if (sprites.variants) paths.push(...sprites.variants);
         if (sprites.default) paths.push(sprites.default);
         if (sprites.highElevation?.variants) paths.push(...sprites.highElevation.variants);
+        if (sprites.lowElevation?.variants) paths.push(...sprites.lowElevation.variants);
       }
     }
 
@@ -103,6 +119,9 @@ export class AssetLoader {
         if (bc.sprite) paths.push(bc.sprite);
       }
     }
+
+    // UI marker sprites
+    paths.push(...Object.values(UI_MARKERS));
 
     return [...new Set(paths)];
   }
@@ -142,6 +161,12 @@ export class AssetLoader {
     // Check high-elevation override
     if (threshold != null && elevation >= threshold && sprites.highElevation) {
       return this._pickVariant(sprites.highElevation, col, row);
+    }
+
+    // Check low-elevation override
+    const lowThreshold = sprites.lowElevationThreshold;
+    if (lowThreshold != null && elevation < lowThreshold && sprites.lowElevation) {
+      return this._pickVariant(sprites.lowElevation, col, row);
     }
 
     // Normal variants

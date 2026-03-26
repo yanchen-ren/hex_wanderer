@@ -113,7 +113,9 @@ export class HexRenderer {
 
   /**
    * Create a hex-clipped RenderTexture from a source texture.
-   * Cached by cacheKey so each terrain+elevation combo is only generated once.
+   * All sprites are clipped to standard hex shape. For tall sprites (trees etc.),
+   * the sprite is bottom-aligned so the hex portion shows the base terrain correctly
+   * and the tree tops above the hex are clipped away.
    *
    * @param {PIXI.Texture} sourceTexture
    * @param {number} tint - 0xRRGGBB tint applied to sprite
@@ -126,29 +128,45 @@ export class HexRenderer {
     }
 
     const size = this.hexSize;
+    const hexW = size * 2;
+    const hexH = size * 2;
     const container = new PIXI.Container();
 
-    // Hex mask
+    // Standard hex mask
     const maskG = new PIXI.Graphics();
     maskG.beginFill(0xffffff);
     maskG.drawPolygon(this.hexPoints(size, size, size));
     maskG.endFill();
     container.addChild(maskG);
 
-    // Sprite
+    // For tall sprites, bottom-align within the hex area
+    const srcW = sourceTexture.width;
+    const srcH = sourceTexture.height;
+    const aspectRatio = srcH / srcW;
+    const isTall = aspectRatio > 1.05;
+
     const sprite = new PIXI.Sprite(sourceTexture);
-    sprite.anchor.set(0.5);
-    sprite.x = size;
-    sprite.y = size;
-    sprite.width = size * 2;
-    sprite.height = size * 2;
+    if (isTall) {
+      // Scale width to fill hex, height proportionally (will be taller than hex)
+      const scaledH = hexW * aspectRatio;
+      sprite.width = hexW;
+      sprite.height = scaledH;
+      sprite.x = 0;
+      sprite.y = hexH - scaledH; // bottom-align: push sprite up so bottom matches hex bottom
+    } else {
+      sprite.anchor.set(0.5);
+      sprite.x = size;
+      sprite.y = size;
+      sprite.width = hexW;
+      sprite.height = hexH;
+    }
     if (tint !== undefined) sprite.tint = tint;
     sprite.mask = maskG;
     container.addChild(sprite);
 
     const tex = this.app.renderer.generateTexture(container, {
       resolution: 2,
-      region: new PIXI.Rectangle(0, 0, size * 2, size * 2),
+      region: new PIXI.Rectangle(0, 0, hexW, hexH),
     });
     container.destroy({ children: true });
 
@@ -176,6 +194,9 @@ export class HexRenderer {
       if (sprites.default) allPaths.add(sprites.default);
       if (sprites.highElevation?.variants) {
         sprites.highElevation.variants.forEach(p => allPaths.add(p));
+      }
+      if (sprites.lowElevation?.variants) {
+        sprites.lowElevation.variants.forEach(p => allPaths.add(p));
       }
 
       for (const path of allPaths) {

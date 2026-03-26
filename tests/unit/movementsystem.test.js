@@ -362,17 +362,18 @@ describe('MovementSystem — executeMove (fall damage)', () => {
     expect(result.apCost).toBe(0.5);
 
     if (firstRoll < 0.1) {
-      expect(result.damage).toBe(10);
-      expect(result.damageType).toBe('fall');
-      expect(player.hp).toBe(90);
+      expect(result.pendingFallDamage).toBe(10);
+      expect(result.fallDamageEvent).toBeTrue();
+      // Damage is NOT applied by MovementSystem — GameLoop handles it
+      expect(player.hp).toBe(100);
     } else {
       // No damage
-      expect(result.damage).toBeUndefined();
+      expect(result.fallDamageEvent).toBeUndefined();
       expect(player.hp).toBe(100);
     }
   });
 
-  it('Δe=-3 无降落伞: 40% 概率 30HP 摔伤', () => {
+  it('Δe=-3 无降落伞: 40% 概率 30HP 摔伤 (pending)', () => {
     const { sys, player } = createSystem({ ap: 5, seed: 100 });
     const firstRoll = new SeededRandom(100).next();
 
@@ -380,11 +381,12 @@ describe('MovementSystem — executeMove (fall damage)', () => {
     expect(result.success).toBeTrue();
 
     if (firstRoll < 0.4) {
-      expect(result.damage).toBe(30);
-      expect(result.damageType).toBe('fall');
-      expect(player.hp).toBe(70);
+      expect(result.pendingFallDamage).toBe(30);
+      expect(result.fallDamageEvent).toBeTrue();
+      // Damage NOT applied
+      expect(player.hp).toBe(100);
     } else {
-      expect(result.damage).toBeUndefined();
+      expect(result.fallDamageEvent).toBeUndefined();
       expect(player.hp).toBe(100);
     }
   });
@@ -394,7 +396,7 @@ describe('MovementSystem — executeMove (fall damage)', () => {
     // Even with a seed that would trigger damage, parachute prevents it
     const result = sys.executeMove(tile('grass', 5, 0, 0), tile('grass', 3, 1, 0));
     expect(result.success).toBeTrue();
-    expect(result.damage).toBeUndefined();
+    expect(result.fallDamageEvent).toBeUndefined();
     expect(player.hp).toBe(100);
   });
 
@@ -402,7 +404,7 @@ describe('MovementSystem — executeMove (fall damage)', () => {
     const { sys, player } = createSystem({ ap: 5, items: ['parachute'], seed: 1 });
     const result = sys.executeMove(tile('grass', 5, 0, 0), tile('grass', 1, 1, 0));
     expect(result.success).toBeTrue();
-    expect(result.damage).toBeUndefined();
+    expect(result.fallDamageEvent).toBeUndefined();
     expect(player.hp).toBe(100);
   });
 
@@ -410,7 +412,7 @@ describe('MovementSystem — executeMove (fall damage)', () => {
     const { sys, player } = createSystem({ ap: 10, seed: 1 });
     const result = sys.executeMove(tile('grass', 3, 0, 0), tile('grass', 6, 1, 0));
     expect(result.success).toBeTrue();
-    expect(result.damage).toBeUndefined();
+    expect(result.fallDamageEvent).toBeUndefined();
     expect(player.hp).toBe(100);
   });
 
@@ -418,7 +420,7 @@ describe('MovementSystem — executeMove (fall damage)', () => {
     const { sys, player } = createSystem({ ap: 5, seed: 1 });
     const result = sys.executeMove(tile('grass', 3, 0, 0), tile('grass', 3, 1, 0));
     expect(result.success).toBeTrue();
-    expect(result.damage).toBeUndefined();
+    expect(result.fallDamageEvent).toBeUndefined();
     expect(player.hp).toBe(100);
   });
 });
@@ -427,7 +429,7 @@ describe('MovementSystem — executeMove (fall damage)', () => {
 // Deterministic fall damage with specific seeds
 // ============================================================
 describe('MovementSystem — deterministic fall damage', () => {
-  it('找到触发 Δe=-1~-2 摔伤的种子', () => {
+  it('找到触发 Δe=-1~-2 摔伤的种子 (pending)', () => {
     // Search for a seed where first roll < 0.1
     let triggerSeed = null;
     for (let s = 0; s < 1000; s++) {
@@ -440,9 +442,10 @@ describe('MovementSystem — deterministic fall damage', () => {
     const { sys, player } = createSystem({ ap: 5, seed: triggerSeed });
     const result = sys.executeMove(tile('grass', 5, 0, 0), tile('grass', 4, 1, 0));
     expect(result.success).toBeTrue();
-    expect(result.damage).toBe(10);
-    expect(result.damageType).toBe('fall');
-    expect(player.hp).toBe(90);
+    expect(result.pendingFallDamage).toBe(10);
+    expect(result.fallDamageEvent).toBeTrue();
+    // Damage NOT applied by MovementSystem
+    expect(player.hp).toBe(100);
   });
 
   it('找到不触发 Δe=-1~-2 摔伤的种子', () => {
@@ -456,11 +459,11 @@ describe('MovementSystem — deterministic fall damage', () => {
     const { sys, player } = createSystem({ ap: 5, seed: safeSeed });
     const result = sys.executeMove(tile('grass', 5, 0, 0), tile('grass', 4, 1, 0));
     expect(result.success).toBeTrue();
-    expect(result.damage).toBeUndefined();
+    expect(result.fallDamageEvent).toBeUndefined();
     expect(player.hp).toBe(100);
   });
 
-  it('找到触发 Δe=-3 摔伤的种子 (roll < 0.4)', () => {
+  it('找到触发 Δe=-3 摔伤的种子 (pending, roll < 0.4)', () => {
     let triggerSeed = null;
     for (let s = 0; s < 1000; s++) {
       const r = new SeededRandom(s).next();
@@ -471,9 +474,10 @@ describe('MovementSystem — deterministic fall damage', () => {
     const { sys, player } = createSystem({ ap: 5, seed: triggerSeed });
     const result = sys.executeMove(tile('grass', 5, 0, 0), tile('grass', 2, 1, 0));
     expect(result.success).toBeTrue();
-    expect(result.damage).toBe(30);
-    expect(result.damageType).toBe('fall');
-    expect(player.hp).toBe(70);
+    expect(result.pendingFallDamage).toBe(30);
+    expect(result.fallDamageEvent).toBeTrue();
+    // Damage NOT applied
+    expect(player.hp).toBe(100);
   });
 
   it('找到不触发 Δe=-3 摔伤的种子 (roll >= 0.4)', () => {
@@ -487,7 +491,7 @@ describe('MovementSystem — deterministic fall damage', () => {
     const { sys, player } = createSystem({ ap: 5, seed: safeSeed });
     const result = sys.executeMove(tile('grass', 5, 0, 0), tile('grass', 2, 1, 0));
     expect(result.success).toBeTrue();
-    expect(result.damage).toBeUndefined();
+    expect(result.fallDamageEvent).toBeUndefined();
     expect(player.hp).toBe(100);
   });
 
@@ -502,7 +506,7 @@ describe('MovementSystem — deterministic fall damage', () => {
     const { sys, player } = createSystem({ ap: 5, items: ['parachute'], seed: triggerSeed });
     const result = sys.executeMove(tile('grass', 5, 0, 0), tile('grass', 4, 1, 0));
     expect(result.success).toBeTrue();
-    expect(result.damage).toBeUndefined();
+    expect(result.fallDamageEvent).toBeUndefined();
     expect(player.hp).toBe(100);
   });
 });

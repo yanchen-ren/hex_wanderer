@@ -70,8 +70,9 @@ export class TurnSystem {
   /**
    * End the current turn: calculate rest effect, handle remaining AP,
    * trigger overnight events based on terrain config probability.
-   * @param {object} tileData - Current tile { terrain, elevation, ... }
-   * @returns {{ restEffect: object, apCarryOver: number, hpChange: number }}
+   * Apply debuff tick effects (poison, frostbite) at turn end.
+   * @param {object} tileData - Current tile { terrain, elevation, building, ... }
+   * @returns {{ restEffect: object, apCarryOver: number, hpChange: number, debuffDamage: number }}
    */
   endTurn(tileData) {
     // Handle remaining AP before rest
@@ -90,7 +91,50 @@ export class TurnSystem {
       hpChange = -result.actualDamage;
     }
 
-    // Apply status effects from rest (e.g., swamp poison)
+    // City rest: clear all debuffs
+    if (tileData.building === 'city' && this._player.clearAllDebuffs) {
+      this._player.clearAllDebuffs();
+    }
+
+    // Elixir: status cleanse on turn end
+    const effects = this._itemSystem.getActiveEffects();
+    if (effects.statusCleanseOnTurnEnd && this._player.clearAllDebuffs) {
+      this._player.clearAllDebuffs();
+    }
+
+    // Item synergy: marigold gold bonus on rest (9.2)
+    let goldFromRest = 0;
+    for (const gb of (effects.goldBonuses ?? [])) {
+      if (gb.source === 'rest') {
+        let bonus = gb.value ?? 0;
+        // Water_cup + marigold synergy: double gold if both active
+        if (this._itemSystem.hasActiveItem('water_cup') || this._itemSystem.hasActiveItem('elixir')) {
+          bonus *= 2;
+        }
+        goldFromRest += bonus;
+      }
+    }
+    if (goldFromRest > 0) {
+      this._player.gold = (this._player.gold ?? 0) + goldFromRest;
+    }
+
+    // Apply debuff tick effects at turn end (before adding new status effects)
+    let debuffDamage = 0;
+    for (const se of this._player.statusEffects) {
+      // Poison: lose 5% of current HP
+      if (se.id === 'poison' && se.effect?.hpLossPercent) {
+        const loss = Math.max(1, Math.floor(this._player.hp * se.effect.hpLossPercent));
+        const { actualDamage } = this._player.applyDamage(loss, 'poison');
+        debuffDamage += actualDamage;
+      }
+      // Frostbite: lose flat HP per turn
+      if (se.id === 'frostbite' && se.effect?.hpLossPerTurn) {
+        const { actualDamage } = this._player.applyDamage(se.effect.hpLossPerTurn, 'frostbite');
+        debuffDamage += actualDamage;
+      }
+    }
+
+    // Apply status effects from rest (e.g., swamp poison) — after debuff tick
     if (restEffect.statusEffects && restEffect.statusEffects.length > 0) {
       for (const se of restEffect.statusEffects) {
         this._player.addStatusEffect(se);
@@ -107,6 +151,7 @@ export class TurnSystem {
       restEffect,
       apCarryOver: apResult.apCarried ?? 0,
       hpChange,
+      debuffDamage,
       overnightEvents,
     });
 
@@ -114,6 +159,7 @@ export class TurnSystem {
       restEffect,
       apCarryOver: apResult.apCarried ?? 0,
       hpChange,
+      debuffDamage,
     };
   }
 
@@ -197,26 +243,197 @@ export class TurnSystem {
   }
 
   /**
-   * Roll for overnight events based on terrain config probability.
-   * @param {object} tileData
-   * @returns {Array} overnight event ids
+   * Roll for overnight events using priority system.
+   * Priority: building events > item events > terrain events > generic events.
+   * Only ONE overnight event triggers per turn (highest priority that passes its roll).
+   * @param {object} tileData - { terrain, elevation, building }
+   * @returns {Array} overnight event ids (0 or 1 element)
    * @private
    */
   _rollOvernightEvents(tileData) {
     const terrainType = tileData?.terrain;
     const terrainDef = this._terrainConfig?.terrainTypes?.[terrainType];
-    if (!terrainDef) return [];
+    const effects = this._itemSystem.getActiveEffects();
 
-    const chance = terrainDef.overnightEventChance ?? 0;
-    const events = terrainDef.overnightEvents ?? [];
-    if (events.length === 0 || chance <= 0) return [];
+    // Overnight safety from items (camper_van) reduces all encounter chances
+    const safetyReduction = effects.overnightSafety > 0 ? (1 - effects.overnightSafety) : 1;
 
-    // Use Math.random for overnight event rolls (non-deterministic game events)
-    if (Math.random() < chance) {
-      const idx = Math.floor(Math.random() * events.length);
-      return [events[idx]];
-    }
+    // --- Priority 1: Building events ---
+    const buildingEvent = this._rollBuildingOvernightEvent(tileData, safetyReduction);
+    if (buildingEvent) return [buildingEvent];
+
+    // --- Priority 2: Item events ---
+    const itemEvent = this._rollItemOvernightEvent(tileData, effects, safetyReduction);
+    if (itemEvent) return [itemEvent];
+
+    // --- Priority 3: Terrain events ---
+    const terrainEvent = this._rollTerrainOvernightEvent(terrainDef, safetyReduction);
+    if (terrainEvent) return [terrainEvent];
+
+    // --- Priority 4: Generic events ---
+    const genericEvent = this._rollGenericOvernightEvent(tileData, effects, safetyReduction);
+    if (genericEvent) return [genericEvent];
 
     return [];
+  }
+
+  /**
+   * Roll building overnight events (highest priority).
+   * @param {object} tileData
+   * @param {number} safetyReduction - multiplier from overnight safety items
+   * @returns {string|null} event id or null
+   * @private
+   */
+  _rollBuildingOvernightEvent(tileData, safetyReduction) {
+    const building = tileData?.building;
+    if (!building) return null;
+
+    if (building === 'city') {
+      // Thief medal → 30% chance of being caught
+      if (this._itemSystem.hasActiveItem('thief_medal')) {
+        if (Math.random() < 0.3 * safetyReduction) {
+          return 'overnight_city_thief';
+        }
+      }
+      // Sheriff badge → bonus event
+      if (this._itemSystem.hasActiveItem('sheriff_badge')) {
+        return 'overnight_city_rest_sheriff';
+      }
+      // Default city rest
+      return 'overnight_city_rest';
+    }
+
+    if (building === 'camp') {
+      // 20% chance of trade event
+      if (Math.random() < 0.2 * safetyReduction) {
+        return 'overnight_camp_trade';
+      }
+      return null;
+    }
+
+    if (building === 'farm') {
+      // Sickle → always harvest
+      if (this._itemSystem.hasActiveItem('sickle')) {
+        return 'overnight_farm_harvest';
+      }
+      return null;
+    }
+
+    if (building === 'village') {
+      // Village overnight: small chance of trade event
+      if (Math.random() < 0.15 * safetyReduction) {
+        return 'overnight_camp_trade';
+      }
+      return null;
+    }
+
+    return null;
+  }
+
+  /**
+   * Roll item overnight events (second priority).
+   * @param {object} tileData
+   * @param {object} effects - aggregated item effects
+   * @param {number} safetyReduction
+   * @returns {string|null} event id or null
+   * @private
+   */
+  _rollItemOvernightEvent(tileData, effects, safetyReduction) {
+    const terrainType = tileData?.terrain;
+
+    // Accordion + torch → campfire party (40% chance)
+    const hasAccordion = this._itemSystem.hasActiveItem('accordion');
+    const hasTorch = this._itemSystem.hasActiveItem('torch') || this._itemSystem.hasActiveItem('mega_torch');
+
+    if (hasAccordion && hasTorch) {
+      if (Math.random() < 0.4) {
+        return 'overnight_campfire';
+      }
+    } else if (hasAccordion) {
+      // Accordion only → party (30% chance)
+      if (Math.random() < 0.3) {
+        return 'overnight_accordion';
+      }
+    }
+
+    // Shovel dig event (not on water, 25% chance)
+    if (this._itemSystem.hasActiveItem('shovel') && terrainType !== 'water') {
+      if (Math.random() < 0.25) {
+        return 'overnight_dig';
+      }
+    }
+
+    // Mystery egg is handled separately in GameLoop (already exists)
+
+    return null;
+  }
+
+  /**
+   * Roll terrain overnight events (third priority).
+   * Uses overnightEvents arrays and overnightEventChance from terrain.json.
+   * @param {object} terrainDef - terrain definition from config
+   * @param {number} safetyReduction
+   * @returns {string|null} event id or null
+   * @private
+   */
+  _rollTerrainOvernightEvent(terrainDef, safetyReduction) {
+    if (!terrainDef) return null;
+
+    const chance = (terrainDef.overnightEventChance ?? 0) * safetyReduction;
+    const terrainEvents = terrainDef.overnightEvents ?? [];
+
+    if (terrainEvents.length > 0 && chance > 0) {
+      if (Math.random() < chance) {
+        const idx = Math.floor(Math.random() * terrainEvents.length);
+        return terrainEvents[idx];
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Roll generic overnight events (lowest priority, any terrain).
+   * Events: insomnia, sick, undead, bandit.
+   * @param {object} tileData
+   * @param {object} effects - aggregated item effects
+   * @param {number} safetyReduction
+   * @returns {string|null} event id or null
+   * @private
+   */
+  _rollGenericOvernightEvent(tileData, effects, safetyReduction) {
+    const terrainType = tileData?.terrain;
+    const elevation = tileData?.elevation ?? 5;
+
+    // Insomnia: 5% chance, -1~2 AP
+    if (Math.random() < 0.05 * safetyReduction) {
+      return 'overnight_insomnia';
+    }
+
+    // Sick: 3% base chance, higher on ice/water/high elevation, tent reduces
+    let sickChance = 0.03;
+    if (terrainType === 'ice' || terrainType === 'water') sickChance += 0.05;
+    if (elevation >= 8) sickChance += 0.03;
+    // Tent reduces sick chance by half
+    if (this._itemSystem.hasActiveItem('tent') || this._itemSystem.hasActiveItem('camper_van')) {
+      sickChance *= 0.5;
+    }
+    if (Math.random() < sickChance * safetyReduction) {
+      return 'overnight_sick';
+    }
+
+    // Undead: 2% chance (reduced from 5%)
+    if (Math.random() < 0.02 * safetyReduction) {
+      return 'overnight_undead';
+    }
+
+    // Bandit: 2% chance (reduced from 5%, thief_medal immune, skip if no gold)
+    if (!this._itemSystem.hasActiveItem('thief_medal') && (this._player.gold ?? 0) > 0) {
+      if (Math.random() < 0.02 * safetyReduction) {
+        return 'overnight_bandit';
+      }
+    }
+
+    return null;
   }
 }

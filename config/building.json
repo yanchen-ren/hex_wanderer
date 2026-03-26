@@ -2,20 +2,22 @@
   "buildingTypes": {
     "lighthouse": {
       "name": "灯塔",
-      "description": "高耸的灯塔照亮周围区域，增加附近地块的视野范围",
-      "effect": { "visionBonus": 3, "areaRadius": 3 },
+      "description": "高耸的灯塔，点亮后可永久揭开周围迷雾",
+      "effect": { "type": "trigger_event" },
       "allowedTerrains": ["grass", "desert", "forest"],
       "adjacencyConstraints": { "forbidden": [] },
-      "triggerEvent": null,
+      "triggerEvent": "lighthouse_event",
       "sprite": "assets/building/lighthouse.png"
     },
     "camp": {
       "name": "营地",
-      "description": "简易的野外营地，休息时可额外恢复体力和生命",
-      "effect": { "restApBonus": 2, "restHpBonus": 10 },
+      "description": "简易的野外营地，可以休息、治疗或交易",
+      "effect": { "type": "trigger_event" },
       "allowedTerrains": ["grass", "forest", "desert"],
       "adjacencyConstraints": { "forbidden": ["monster_camp"] },
-      "triggerEvent": null,
+      "triggerEvent": "camp_rest_event",
+      "restApBonus": 2,
+      "restHpBonus": 10,
       "sprite": "assets/building/camp.png"
     },
     "city": {
@@ -40,7 +42,7 @@
       "name": "传送门",
       "description": "收集齐三件圣物碎片后，踏入传送门即可通关",
       "effect": { "type": "win_condition" },
-      "allowedTerrains": ["grass", "desert"],
+      "allowedTerrains": ["grass", "desert", "forest", "swamp", "water", "ice", "lava"],
       "adjacencyConstraints": { "forbidden": ["monster_camp"] },
       "triggerEvent": null,
       "sprite": "assets/building/portal.png"
@@ -65,8 +67,8 @@
     },
     "farm": {
       "name": "农田",
-      "description": "宁静的农田，休息时可恢复大量生命值",
-      "effect": { "restHpBonus": 20, "restApBonus": 0 },
+      "description": "宁静的农田，持有镰刀时休息可恢复生命",
+      "effect": { "restHpBonus": 0, "restApBonus": 0 },
       "allowedTerrains": ["grass"],
       "adjacencyConstraints": { "forbidden": ["lava", "monster_camp"] },
       "triggerEvent": null,
@@ -98,6 +100,142 @@
       "adjacencyConstraints": { "forbidden": ["city"] },
       "triggerEvent": null,
       "sprite": "assets/building/whirlpool.png"
+    },
+    "church": {
+      "name": "教堂",
+      "description": "神圣的教堂，可以祈祷解除诅咒和流血",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["grass", "desert"],
+      "adjacencyConstraints": { "forbidden": ["monster_camp"] },
+      "triggerEvent": "church_prayer",
+      "sprite": "assets/building/church.png"
+    },
+    "watchtower": {
+      "name": "瞭望塔",
+      "description": "高耸的瞭望塔，登上后可揭开周围迷雾，偶尔能发现物资",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["grass", "desert", "forest"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "watchtower_event",
+      "sprite": "assets/building/watchtower.png"
+    },
+    "reef": {
+      "name": "暗礁",
+      "description": "水域中的危险暗礁，可以搜索、战斗或修船",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["water"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "reef_event",
+      "repeatable": true,
+      "sprite": "assets/building/reef.png"
+    },
+    "training_ground": {
+      "name": "训练场",
+      "description": "古老的训练场，可以永久提升生命上限或行动力上限",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["grass", "desert"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "training_event",
+      "sprite": "assets/building/training_ground.png"
+    },
+    "altar": {
+      "name": "祭坛",
+      "description": "神秘的祭坛，可以献祭HP换取道具，或供奉道具换取金币",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["grass", "forest", "desert"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "altar_event",
+      "repeatable": true,
+      "sprite": "assets/building/altar.png"
+    },
+    "spring": {
+      "name": "泉水",
+      "description": "清澈的泉水，经过时自动恢复行动力",
+      "effect": { "type": "passive_ap_restore", "apMin": 2, "apMax": 5, "fullRestoreChance": 0.05 },
+      "allowedTerrains": ["grass", "forest"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": null,
+      "sprite": "assets/building/spring.png"
+    },
+    "wishing_well": {
+      "name": "许愿池",
+      "description": "古老的许愿池，投入金币也许能获得好运",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["grass", "forest"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "wishing_well_event",
+      "repeatable": true,
+      "sprite": "assets/building/wishing_well.png"
+    },
+    "phone_booth": {
+      "name": "废弃的电话亭",
+      "description": "一座废弃的电话亭，拨号盘上还残留着指纹",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["desert", "grass"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "phone_booth_event",
+      "repeatable": true,
+      "sprite": "assets/building/phone_booth.png"
+    },
+    "food_truck": {
+      "name": "路边餐车",
+      "description": "一辆冒着热气的路边餐车，空气中弥漫着食物的香味",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["grass"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "food_truck_event",
+      "repeatable": true,
+      "sprite": "assets/building/food_truck.png"
+    },
+    "bonfire": {
+      "name": "孤独的篝火",
+      "description": "一堆永不熄灭的篝火，坐下休息可以治愈伤痛",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["grass", "desert", "forest", "swamp", "ice"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "bonfire_event",
+      "repeatable": true,
+      "sprite": "assets/building/bonfire.png"
+    },
+    "hollow_tree": {
+      "name": "树洞",
+      "description": "一棵巨大古树的树洞，里面似乎通向某个地方",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["forest"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "hollow_tree_event",
+      "repeatable": true,
+      "sprite": "assets/building/hollow_tree.png"
+    },
+    "colossus_hand": {
+      "name": "巨像之手",
+      "description": "一只从沙漠中伸出的巨大石手，仿佛远古巨像的遗迹",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["desert"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "colossus_hand_event",
+      "repeatable": true,
+      "sprite": "assets/building/colossus_hand.png"
+    },
+    "vending_machine": {
+      "name": "自动贩卖机",
+      "description": "一台不知从哪来的自动贩卖机，居然还在运转",
+      "effect": { "type": "trigger_event" },
+      "allowedTerrains": ["grass", "desert"],
+      "adjacencyConstraints": { "forbidden": [] },
+      "triggerEvent": "vending_machine_event",
+      "repeatable": true,
+      "sprite": "assets/building/vending_machine.png"
+    },
+    "village": {
+      "name": "村庄",
+      "description": "宁静的小村庄，可以休息恢复和交易普通道具",
+      "effect": { "type": "trigger_event", "restHpBonus": 12, "restApBonus": 1 },
+      "allowedTerrains": ["grass"],
+      "adjacencyConstraints": { "forbidden": ["monster_camp"] },
+      "triggerEvent": "village_event",
+      "repeatable": true,
+      "sprite": "assets/building/village.png"
     }
   }
 }

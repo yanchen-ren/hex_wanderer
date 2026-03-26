@@ -13,6 +13,7 @@
       "name": "降落伞",
       "description": "轻便的降落伞，免疫所有下坡摔伤并允许通过悬崖",
       "quality": "rare",
+      "consumable": true,
       "effects": [
         { "type": "fall_immunity" },
         { "type": "terrain_pass", "condition": "elevationDelta <= -4" }
@@ -76,12 +77,561 @@
     },
     "antidote": {
       "name": "解毒药",
-      "description": "万能解毒药，抵消中毒等负面状态效果",
+      "description": "消耗品，在事件中使用可解除中毒",
       "quality": "common",
+      "consumable": true,
       "effects": [
-        { "type": "status_immunity", "statusId": "poison" }
+        { "type": "event_option_unlock", "optionTag": "antidote" }
       ],
       "sprite": "assets/item/antidote.png"
+    },
+    "helmet": {
+      "name": "安全帽",
+      "description": "致命伤害时保留1HP",
+      "quality": "rare",
+      "consumable": true,
+      "effects": [
+        { "type": "lethal_save", "hpRemain": 1 }
+      ],
+      "sprite": "assets/item/helmet.png"
+    },
+    "resurrection_cross": {
+      "name": "重生十字架",
+      "description": "致命伤害时满血重生（安全帽优先）",
+      "quality": "epic",
+      "consumable": true,
+      "effects": [
+        { "type": "lethal_save", "fullHeal": true }
+      ],
+      "sprite": "assets/item/resurrection_cross.png"
+    },
+    "hourglass": {
+      "name": "沙漏",
+      "description": "对话选错致死/大额扣血时重新选择一次",
+      "quality": "rare",
+      "consumable": true,
+      "effects": [
+        { "type": "hourglass_retry" }
+      ],
+      "sprite": "assets/item/hourglass.png"
+    },
+    "bomb": {
+      "name": "炸弹",
+      "description": "特定事件中解锁[炸开]选项",
+      "quality": "uncommon",
+      "consumable": true,
+      "effects": [
+        { "type": "event_option_unlock", "optionTag": "bomb" }
+      ],
+      "sprite": "assets/item/bomb.png"
+    },
+    "garlic": {
+      "name": "大蒜",
+      "description": "不死族增加胜率；概率解除诅咒（可能失败）",
+      "quality": "common",
+      "consumable": true,
+      "effects": [
+        { "type": "combat_bonus", "against": "undead" }
+      ],
+      "sprite": "assets/item/garlic.png"
+    },
+    "wolfsbane": {
+      "name": "狼毒药剂",
+      "description": "狼人事件解锁[全身而退]",
+      "quality": "uncommon",
+      "consumable": true,
+      "effects": [
+        { "type": "event_option_unlock", "optionTag": "wolfsbane" }
+      ],
+      "sprite": "assets/item/wolfsbane.png"
+    },
+    "smoke_bomb": {
+      "name": "烟雾弹",
+      "description": "逃跑100%成功",
+      "quality": "uncommon",
+      "consumable": true,
+      "effects": [
+        { "type": "escape_guarantee" }
+      ],
+      "sprite": "assets/item/smoke_bomb.png"
+    },
+    "mystery_egg": {
+      "name": "神秘蛋",
+      "description": "5回合后孵化，三选一获得道具",
+      "quality": "uncommon",
+      "consumable": true,
+      "effects": [
+        { "type": "mystery_egg_timer", "turns": 5 }
+      ],
+      "sprite": "assets/item/mystery_egg.png"
+    },
+    "hunting_dog": {
+      "name": "猎犬",
+      "description": "大概率增加战斗胜率，但战后概率死亡",
+      "quality": "rare",
+      "deathChance": 0.2,
+      "effects": [
+        { "type": "combat_bonus", "value": 0.3 }
+      ],
+      "sprite": "assets/item/hunting_dog.png"
+    },
+    "car": {
+      "name": "车",
+      "description": "AP上限+2，草地/荒漠AP消耗大幅降低",
+      "quality": "rare",
+      "effects": [
+        { "type": "ap_max_bonus", "value": 2 },
+        { "type": "ap_cost_modifier", "terrains": ["grass", "desert"], "multiplier": 0.5 }
+      ],
+      "sprite": "assets/item/car.png"
+    },
+    "feather": {
+      "name": "羽毛",
+      "description": "减少下坡AP消耗",
+      "quality": "common",
+      "effects": [
+        { "type": "ap_cost_modifier", "condition": "downhill", "multiplier": 0.5 }
+      ],
+      "sprite": "assets/item/feather.png"
+    },
+    "sword": {
+      "name": "剑",
+      "description": "[威慑]毛贼获得金币",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "event_option_unlock", "optionTag": "sword_intimidate" }
+      ],
+      "sprite": "assets/item/sword.png"
+    },
+    "strange_gem": {
+      "name": "诡异宝石",
+      "description": "坏运气选项概率降低10%",
+      "quality": "rare",
+      "effects": [
+        { "type": "luck_modifier", "value": -0.1 }
+      ],
+      "sprite": "assets/item/strange_gem.png"
+    },
+    "compass": {
+      "name": "指南针",
+      "description": "始终点亮传送门地块（无迷雾）",
+      "quality": "common",
+      "effects": [
+        { "type": "reveal_portal" }
+      ],
+      "sprite": "assets/item/compass.png"
+    },
+    "old_scroll": {
+      "name": "破旧的羊皮卷",
+      "description": "单独无效果，与指南针组合成藏宝图",
+      "quality": "common",
+      "effects": [],
+      "sprite": "assets/item/old_scroll.png"
+    },
+    "blue_sweater": {
+      "name": "蓝色毛衣",
+      "description": "小幅减少所有伤害",
+      "quality": "common",
+      "effects": [
+        { "type": "combat_damage_reduction", "value": 0.1 }
+      ],
+      "sprite": "assets/item/blue_sweater.png"
+    },
+    "water_cup": {
+      "name": "无尽水杯",
+      "description": "免疫干渴；祭坛奇遇；增强金盏花产出",
+      "quality": "common",
+      "effects": [
+        { "type": "status_immunity", "statusId": "thirst" }
+      ],
+      "sprite": "assets/item/water_cup.png"
+    },
+    "mask": {
+      "name": "欺诈面具",
+      "description": "抢劫/盘问时解锁[伪装]，100%避战",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "event_option_unlock", "optionTag": "mask_disguise" }
+      ],
+      "sprite": "assets/item/mask.png"
+    },
+    "briefcase": {
+      "name": "贿赂公文包",
+      "description": "守卫/强盗时解锁[给钱放行]（消耗金币）",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "event_option_unlock", "optionTag": "bribe" }
+      ],
+      "sprite": "assets/item/briefcase.png"
+    },
+    "shovel": {
+      "name": "铲子",
+      "description": "过夜事件：有AP且不在水面时可挖掘获得金币/素材",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "event_option_unlock", "optionTag": "dig" }
+      ],
+      "sprite": "assets/item/shovel.png"
+    },
+    "stick": {
+      "name": "逗猫棒",
+      "description": "野兽[安抚]成功率100%",
+      "quality": "common",
+      "effects": [
+        { "type": "event_option_unlock", "optionTag": "tame" }
+      ],
+      "sprite": "assets/item/stick.png"
+    },
+    "torch": {
+      "name": "火把",
+      "description": "免疫冻伤debuff+寒冷伤害+浮冰地形伤害；过夜驱散野兽",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "status_immunity", "statusId": "frostbite" }
+      ],
+      "sprite": "assets/item/torch.png"
+    },
+    "pearl": {
+      "name": "珍珠",
+      "description": "城市卖出获金币（卖vs留着合成的抉择）",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "sell_in_city", "goldValue": 50 }
+      ],
+      "sprite": "assets/item/pearl.png"
+    },
+    "pharaoh_scepter": {
+      "name": "法老的权杖",
+      "description": "城市卖出获大量金币+免疫诅咒状态",
+      "quality": "rare",
+      "effects": [
+        { "type": "sell_in_city", "goldValue": 150 },
+        { "type": "curse_immunity" }
+      ],
+      "sprite": "assets/item/pharaoh_scepter.png"
+    },
+    "camper_van": {
+      "name": "房车",
+      "description": "继承车+帐篷效果，增加回血，减少过夜遭遇战",
+      "quality": "legendary",
+      "effects": [
+        { "type": "ap_max_bonus", "value": 2 },
+        { "type": "ap_cost_modifier", "terrains": ["grass", "desert"], "multiplier": 0.5 },
+        { "type": "rest_hp_bonus", "value": 20 },
+        { "type": "overnight_safety", "encounterReduction": 0.5 }
+      ],
+      "sprite": "assets/item/camper_van.png"
+    },
+    "glider": {
+      "name": "滑翔翼",
+      "description": "免疫摔伤+下坡AP消耗为0",
+      "quality": "legendary",
+      "effects": [
+        { "type": "fall_immunity" },
+        { "type": "terrain_pass", "condition": "elevationDelta <= -4" },
+        { "type": "ap_cost_modifier", "condition": "downhill", "multiplier": 0 }
+      ],
+      "sprite": "assets/item/glider.png"
+    },
+    "drill": {
+      "name": "考古钻头",
+      "description": "遗迹必得rare+道具",
+      "quality": "epic",
+      "effects": [
+        { "type": "ruin_loot_upgrade", "minQuality": "rare" }
+      ],
+      "sprite": "assets/item/drill.png"
+    },
+    "mega_torch": {
+      "name": "巨型火炬",
+      "description": "视野+3，2格内寒冷伤害为0",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "vision_bonus", "value": 3 },
+        { "type": "status_immunity", "statusId": "frostbite" },
+        { "type": "cold_area_immunity", "radius": 2 }
+      ],
+      "sprite": "assets/item/mega_torch.png"
+    },
+    "master_sword": {
+      "name": "大师之剑",
+      "description": "战斗成功率大幅提升，胜利不扣HP",
+      "quality": "legendary",
+      "effects": [
+        { "type": "combat_bonus", "value": 0.5 },
+        { "type": "combat_no_damage_on_win" }
+      ],
+      "sprite": "assets/item/master_sword.png"
+    },
+    "treasure_map": {
+      "name": "藏宝图",
+      "description": "点亮圣物碎片和传送门位置",
+      "quality": "rare",
+      "effects": [
+        { "type": "reveal_portal" },
+        { "type": "reveal_relics" }
+      ],
+      "sprite": "assets/item/treasure_map.png"
+    },
+    "elixir": {
+      "name": "万能药",
+      "description": "回合结束移除所有负面状态+免疫干渴场地效果",
+      "quality": "legendary",
+      "effects": [
+        { "type": "status_cleanse_on_turn_end" },
+        { "type": "status_immunity", "statusId": "thirst" }
+      ],
+      "sprite": "assets/item/elixir.png"
+    },
+    "diplomat_kit": {
+      "name": "外交官礼包",
+      "description": "NPC初始好感度为友善",
+      "quality": "legendary",
+      "effects": [
+        { "type": "npc_friendly" },
+        { "type": "event_option_unlock", "optionTag": "mask_disguise" },
+        { "type": "event_option_unlock", "optionTag": "bribe" }
+      ],
+      "sprite": "assets/item/diplomat_kit.png"
+    },
+    "pharaoh_codex": {
+      "name": "法老法典",
+      "description": "战斗概率[劝降]获战利品（boss除外）",
+      "quality": "legendary",
+      "effects": [
+        { "type": "combat_surrender_chance", "value": 0.3 },
+        { "type": "curse_immunity" }
+      ],
+      "sprite": "assets/item/pharaoh_codex.png"
+    },
+    "black_pearl": {
+      "name": "黑珍珠号",
+      "description": "进入水域+极大减少水上AP消耗",
+      "quality": "legendary",
+      "effects": [
+        { "type": "terrain_pass", "terrainType": "water" },
+        { "type": "ap_cost_modifier", "terrains": ["water"], "multiplier": 0.2 }
+      ],
+      "sprite": "assets/item/black_pearl.png"
+    },
+    "vest": {
+      "name": "防弹背心",
+      "description": "战斗伤害减少15%",
+      "quality": "common",
+      "effects": [
+        { "type": "combat_damage_reduction", "value": 0.15 }
+      ],
+      "sprite": "assets/item/vest.png"
+    },
+    "chainmail": {
+      "name": "锁子甲",
+      "description": "战斗伤害减少35%，AP上限-1",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "combat_damage_reduction", "value": 0.35 },
+        { "type": "ap_max_bonus", "value": -1 }
+      ],
+      "sprite": "assets/item/chainmail.png"
+    },
+    "shield": {
+      "name": "盾牌",
+      "description": "对话选错触发陷阱时免除扣血",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "trap_immunity" }
+      ],
+      "sprite": "assets/item/shield.png"
+    },
+    "bio_suit": {
+      "name": "防护服",
+      "description": "沼泽毒气等特定事件中解锁[穿防护服]免疫选项",
+      "quality": "rare",
+      "effects": [
+        { "type": "event_option_unlock", "optionTag": "bio_suit" }
+      ],
+      "sprite": "assets/item/bio_suit.png"
+    },
+    "climbing_gloves": {
+      "name": "攀爬手套",
+      "description": "爬坡AP消耗减半",
+      "quality": "common",
+      "effects": [
+        { "type": "ap_cost_modifier", "condition": "uphill", "multiplier": 0.5 }
+      ],
+      "sprite": "assets/item/climbing_gloves.png"
+    },
+    "witch_broom": {
+      "name": "魔女的扫帚",
+      "description": "所有地形AP消耗减少，免疫摔伤",
+      "quality": "epic",
+      "effects": [
+        { "type": "ap_cost_modifier", "condition": "all", "multiplier": 0.7 },
+        { "type": "fall_immunity" }
+      ],
+      "sprite": "assets/item/witch_broom.png"
+    },
+    "fan": {
+      "name": "芭蕉扇",
+      "description": "迷雾/毒气中解锁[扇走]选项",
+      "quality": "rare",
+      "effects": [
+        { "type": "event_option_unlock", "optionTag": "fan_blow" }
+      ],
+      "sprite": "assets/item/fan.png"
+    },
+    "earphone": {
+      "name": "万能耳机",
+      "description": "小概率在正面选项后显示推荐标记🎧",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "earphone_hint", "chance": 0.3 }
+      ],
+      "sprite": "assets/item/earphone.png"
+    },
+    "whip": {
+      "name": "鞭子",
+      "description": "不死族事件胜率超级大幅提高；免疫诅咒状态",
+      "quality": "rare",
+      "effects": [
+        { "type": "combat_bonus", "against": "undead", "value": 0.6 },
+        { "type": "curse_immunity" }
+      ],
+      "sprite": "assets/item/whip.png"
+    },
+    "cowboy_hat": {
+      "name": "牛仔帽",
+      "description": "战斗胜率+逃跑率提升，但遇毒蛇必中毒",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "combat_bonus", "value": 0.15 },
+        { "type": "escape_bonus", "value": 0.2 }
+      ],
+      "sprite": "assets/item/cowboy_hat.png"
+    },
+    "straw_doll": {
+      "name": "草娃娃",
+      "description": "很小概率吓跑敌人（boss除外）",
+      "quality": "common",
+      "effects": [
+        { "type": "scare_chance", "value": 0.1 }
+      ],
+      "sprite": "assets/item/straw_doll.png"
+    },
+    "thief_medal": {
+      "name": "盗贼勋章",
+      "description": "战斗额外金币+免疫强盗，但城市过夜概率被抓",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "gold_bonus", "source": "combat", "value": 10 },
+        { "type": "event_option_unlock", "optionTag": "thief_immunity" }
+      ],
+      "sprite": "assets/item/thief_medal.png"
+    },
+    "sheriff_badge": {
+      "name": "警长勋章",
+      "description": "强盗时解锁[逮捕]获大量金币；城市过夜加HP+概率金币",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "event_option_unlock", "optionTag": "arrest" },
+        { "type": "gold_bonus", "source": "city_rest", "value": 15 }
+      ],
+      "sprite": "assets/item/sheriff_badge.png"
+    },
+    "hoe": {
+      "name": "锄头",
+      "description": "荆棘/废墟挡路时解锁[清理]",
+      "quality": "common",
+      "effects": [
+        { "type": "event_option_unlock", "optionTag": "clear_path" }
+      ],
+      "sprite": "assets/item/hoe.png"
+    },
+    "marigold": {
+      "name": "金盏花",
+      "description": "每回合休息后获得少量金币",
+      "quality": "common",
+      "effects": [
+        { "type": "gold_bonus", "source": "rest", "value": 5 }
+      ],
+      "sprite": "assets/item/marigold.png"
+    },
+    "accordion": {
+      "name": "手风琴",
+      "description": "过夜概率触发晚会+HP；有火把升级为篝火晚会+AP",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "overnight_party", "hpBonus": 10, "chance": 0.3 }
+      ],
+      "sprite": "assets/item/accordion.png"
+    },
+    "magnet": {
+      "name": "强力磁铁",
+      "description": "废墟/城镇获得金币量翻倍",
+      "quality": "uncommon",
+      "effects": [
+        { "type": "gold_bonus", "source": "ruin_city", "multiplier": 2 }
+      ],
+      "sprite": "assets/item/magnet.png"
+    },
+    "sickle": {
+      "name": "镰刀",
+      "description": "在农田休息时+20HP",
+      "quality": "common",
+      "effects": [
+        { "type": "farm_rest_bonus", "value": 20 }
+      ],
+      "sprite": "assets/item/sickle.png"
+    },
+    "lava_core": {
+      "name": "熔岩核心",
+      "description": "免疫所有火焰/熔岩伤害",
+      "quality": "epic",
+      "effects": [
+        { "type": "terrain_pass", "terrainType": "lava" },
+        { "type": "enter_damage_immunity", "terrainType": "lava" }
+      ],
+      "sprite": "assets/item/lava_core.png"
+    },
+    "salted_fish": {
+      "name": "咸鱼",
+      "description": "散发着浓烈咸味的鱼干，可以在NPC面前掏出来嘲讽，效果随机",
+      "quality": "common",
+      "effects": [
+        { "type": "event_option_unlock", "optionTag": "taunt" }
+      ],
+      "sprite": "assets/item/salted_fish.png"
+    },
+    "empty_ball": {
+      "name": "空的球",
+      "description": "概率收服弱小野兽获得临时战斗伙伴",
+      "quality": "uncommon",
+      "consumable": true,
+      "effects": [
+        { "type": "combat_capture", "captureChance": 0.3 }
+      ],
+      "sprite": "assets/item/empty_ball.png"
+    },
+    "dried_fruit": {
+      "name": "干果",
+      "description": "食用后回复5HP",
+      "quality": "common",
+      "consumable": true,
+      "effects": [
+        { "type": "hp_restore", "value": 5 }
+      ],
+      "sprite": "assets/item/dried_fruit.png"
     }
-  }
+  },
+  "combinations": [
+    { "materialA": "car", "materialB": "tent", "result": "camper_van" },
+    { "materialA": "feather", "materialB": "parachute", "result": "glider" },
+    { "materialA": "shovel", "materialB": "telescope", "result": "drill" },
+    { "materialA": "stick", "materialB": "torch", "result": "mega_torch" },
+    { "materialA": "sword", "materialB": "strange_gem", "result": "master_sword" },
+    { "materialA": "compass", "materialB": "old_scroll", "result": "treasure_map" },
+    { "materialA": "blue_sweater", "materialB": "water_cup", "result": "elixir" },
+    { "materialA": "mask", "materialB": "briefcase", "result": "diplomat_kit" },
+    { "materialA": "pharaoh_scepter", "materialB": "resurrection_cross", "result": "pharaoh_codex" },
+    { "materialA": "pearl", "materialB": "boat", "result": "black_pearl" }
+  ]
 }

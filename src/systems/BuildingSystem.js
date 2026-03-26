@@ -111,6 +111,56 @@ export class BuildingSystem {
       return result;
     }
 
+    // --- Passive AP restore (spring) ---
+    if (effect.type === 'passive_ap_restore') {
+      const apMin = effect.apMin ?? 2;
+      const apMax = effect.apMax ?? 5;
+      const fullRestoreChance = effect.fullRestoreChance ?? 0.05;
+
+      result.type = 'passive_ap_restore';
+
+      // Determine AP restore amount
+      const roll = Math.random();
+      let apRestore;
+      if (roll < fullRestoreChance) {
+        // Full AP restore
+        apRestore = playerState.apMax - playerState.ap;
+        result.fullRestore = true;
+      } else {
+        // Random restore between min and max
+        apRestore = apMin + Math.floor(Math.random() * (apMax - apMin + 1));
+        result.fullRestore = false;
+      }
+
+      result.apRestore = apRestore;
+      result.message = result.fullRestore
+        ? '泉水散发出神奇的光芒，你的行动力完全恢复了！'
+        : `清澈的泉水让你恢复了 ${apRestore} 点行动力`;
+
+      if (this._eventBus) {
+        this._eventBus.emit('building:spring', { position: buildingData.position, apRestore });
+      }
+      return result;
+    }
+
+    // --- Clear curse (church) ---
+    if (effect.type === 'clear_curse') {
+      result.type = 'clear_curse';
+      result.message = def.description;
+      if (playerState.removeStatusEffect) {
+        const removed = playerState.removeStatusEffect('curse');
+        if (removed) {
+          result.message = '教堂的神圣力量解除了你的诅咒！';
+        } else {
+          result.message = '教堂的神圣气息让你感到安宁。';
+        }
+      }
+      if (this._eventBus) {
+        this._eventBus.emit('building:church', { position: buildingData.position });
+      }
+      return result;
+    }
+
     // Fallback
     result.type = 'passive';
     result.effect = effect;

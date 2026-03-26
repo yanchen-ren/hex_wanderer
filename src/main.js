@@ -32,6 +32,8 @@ let eventBus = null;
 let renderEngine = null;
 /** @type {UIManager|null} */
 let uiManager = null;
+/** @type {import('./ui/InputHandler.js').InputHandler|null} */
+let inputHandler = null;
 /** @type {object} configs */
 let configs = null;
 
@@ -65,10 +67,15 @@ async function init() {
   // 4. Initialize RenderEngine
   renderEngine = new RenderEngine(pixiApp, { hexSize: 18 });
   await renderEngine.init(configs.terrain, configs.building);
+  renderEngine.setEventConfig(configs.event);
 
   // 5. Initialize UIManager
   uiManager = new UIManager(container, eventBus);
   uiManager.init();
+
+  // 5.5 Initialize InputHandler (once, reused across game restarts)
+  inputHandler = new InputHandler(renderEngine, eventBus);
+  inputHandler.init();
 
   // 6. Check for auto-save
   const saveSystem = new SaveSystem(GAME_VERSION);
@@ -118,7 +125,7 @@ async function startNewGame(saveSystem, forceSeed, forceSize) {
   }
 
   // Generate map
-  const gen = new MapGenerator(seed, mapSize, configs.terrain, configs.building, configs.item);
+  const gen = new MapGenerator(seed, mapSize, configs.terrain, configs.building, configs.item, configs.event);
   const mapData = gen.generate();
 
   // Player starts at center
@@ -128,7 +135,7 @@ async function startNewGame(saveSystem, forceSeed, forceSize) {
   const playerState = new PlayerState({
     position: { q: spawnCol, r: spawnRow },
     hp: 100, hpMax: 100,
-    ap: 5, apMax: 5,
+    ap: 8, apMax: 8,
     turnNumber: 1,
     relicsCollected: 0,
   });
@@ -140,10 +147,8 @@ async function startNewGame(saveSystem, forceSeed, forceSize) {
   const eventSystem = new EventSystem(configs.event, configs.terrain, configs.building, playerState, eventBus, { itemSystem, rng });
   const fogSystem = new FogSystem(configs.terrain, playerState, itemSystem);
   const buildingSystem = new BuildingSystem(configs.building, eventBus);
-  const inputHandler = new InputHandler(renderEngine, eventBus);
-  inputHandler.init();
 
-  // Create and start GameLoop
+  // Create and start GameLoop (reuse module-level inputHandler)
   gameLoop = new GameLoop({
     eventBus, renderEngine, uiManager, inputHandler,
     playerState, movementSystem, turnSystem, eventSystem,
@@ -151,6 +156,7 @@ async function startNewGame(saveSystem, forceSeed, forceSize) {
     mapData, configs, seed, mapSize,
   });
 
+  renderEngine.setEventConfig(configs.event);
   gameLoop.start();
 
   // Listen for restart/restore
@@ -182,8 +188,6 @@ async function startFromSave(savedState, saveSystem) {
   const eventSystem = new EventSystem(configs.event, configs.terrain, configs.building, playerState, eventBus, { itemSystem, rng });
   const fogSystem = new FogSystem(configs.terrain, playerState, itemSystem);
   const buildingSystem = new BuildingSystem(configs.building, eventBus);
-  const inputHandler = new InputHandler(renderEngine, eventBus);
-  inputHandler.init();
 
   // Restore fog
   if (savedState.fog) {

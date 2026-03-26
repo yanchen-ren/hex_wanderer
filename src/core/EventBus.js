@@ -25,10 +25,15 @@ export class EventBus {
   /**
    * 取消订阅
    * @param {string} event - 事件名称
-   * @param {Function} callback - 要移除的回调
+   * @param {Function} [callback] - 要移除的回调。省略则移除该事件所有监听器
    * @returns {this}
    */
   off(event, callback) {
+    if (!callback) {
+      // Remove all listeners for this event
+      this._listeners.delete(event);
+      return this;
+    }
     const set = this._listeners.get(event);
     if (set) {
       set.delete(callback);

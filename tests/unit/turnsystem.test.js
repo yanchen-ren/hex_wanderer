@@ -430,3 +430,263 @@ describe('TurnSystem — 完整回合流程', () => {
     expect(player.statusEffects.length).toBe(0);
   });
 });
+
+
+// ============================================================
+// _rollOvernightEvents — Priority system (Task 2)
+// ============================================================
+describe('TurnSystem — _rollOvernightEvents priority system', () => {
+  // Helper: create system with extended item config for overnight events
+  const overnightItemConfig = {
+    items: {
+      ...itemConfig.items,
+      thief_medal: {
+        name: '盗贼勋章',
+        quality: 'uncommon',
+        effects: [
+          { type: 'gold_bonus', source: 'combat', value: 10 },
+          { type: 'event_option_unlock', optionTag: 'thief_immunity' },
+        ],
+      },
+      sheriff_badge: {
+        name: '警长勋章',
+        quality: 'uncommon',
+        effects: [
+          { type: 'event_option_unlock', optionTag: 'arrest' },
+          { type: 'gold_bonus', source: 'city_rest', value: 15 },
+        ],
+      },
+      accordion: {
+        name: '手风琴',
+        quality: 'uncommon',
+        effects: [
+          { type: 'overnight_party', hpBonus: 10, chance: 0.3 },
+        ],
+      },
+      torch: {
+        name: '火把',
+        quality: 'uncommon',
+        effects: [
+          { type: 'status_immunity', statusId: 'frostbite' },
+        ],
+      },
+      shovel: {
+        name: '铲子',
+        quality: 'uncommon',
+        effects: [
+          { type: 'event_option_unlock', optionTag: 'dig' },
+        ],
+      },
+      hoe: {
+        name: '锄头',
+        quality: 'common',
+        effects: [
+          { type: 'event_option_unlock', optionTag: 'clear_path' },
+        ],
+      },
+      sickle: {
+        name: '镰刀',
+        quality: 'common',
+        effects: [
+          { type: 'farm_rest_bonus', value: 20 },
+        ],
+      },
+      camper_van: {
+        name: '房车',
+        quality: 'legendary',
+        effects: [
+          { type: 'overnight_safety', encounterReduction: 0.5 },
+          { type: 'rest_hp_bonus', value: 20 },
+        ],
+      },
+    },
+  };
+
+  function createOvernightSystem({ items, hp, ap } = {}) {
+    const player = new PlayerState({
+      hp: hp ?? 80,
+      hpMax: 100,
+      ap: ap ?? 5,
+      apMax: 5,
+      turnNumber: 1,
+    });
+    const itemSys = new ItemSystem(overnightItemConfig);
+    if (items) items.forEach(id => itemSys.addItem(id));
+    const eventBus = new EventBus();
+    const sys = new TurnSystem(player, terrainConfig, itemSys, eventBus);
+    return { sys, player, itemSys };
+  }
+
+  it('城市过夜: 默认返回 overnight_city_rest', () => {
+    const { sys } = createOvernightSystem();
+    // Run many times to confirm city always returns a city event
+    let gotCityRest = false;
+    for (let i = 0; i < 50; i++) {
+      const events = sys._rollOvernightEvents({ terrain: 'grass', elevation: 3, building: 'city' });
+      if (events.length > 0 && events[0] === 'overnight_city_rest') {
+        gotCityRest = true;
+        break;
+      }
+    }
+    expect(gotCityRest).toBeTrue();
+  });
+
+  it('城市 + 警长勋章: 返回 overnight_city_rest_sheriff', () => {
+    const { sys } = createOvernightSystem({ items: ['sheriff_badge'] });
+    const events = sys._rollOvernightEvents({ terrain: 'grass', elevation: 3, building: 'city' });
+    expect(events.length).toBe(1);
+    expect(events[0]).toBe('overnight_city_rest_sheriff');
+  });
+
+  it('农田 + 镰刀: 返回 overnight_farm_harvest', () => {
+    const { sys } = createOvernightSystem({ items: ['sickle'] });
+    const events = sys._rollOvernightEvents({ terrain: 'grass', elevation: 3, building: 'farm' });
+    expect(events.length).toBe(1);
+    expect(events[0]).toBe('overnight_farm_harvest');
+  });
+
+  it('农田无镰刀: 不触发农田收获', () => {
+    const { sys } = createOvernightSystem();
+    const events = sys._rollOvernightEvents({ terrain: 'grass', elevation: 3, building: 'farm' });
+    // Farm without hoe returns null from building, falls through to other priorities
+    expect(events.length <= 1).toBeTrue();
+    if (events.length === 1) {
+      expect(events[0] !== 'overnight_farm_harvest').toBeTrue();
+    }
+  });
+
+  it('只返回最多一个过夜事件', () => {
+    const { sys } = createOvernightSystem({ items: ['accordion', 'torch', 'shovel'] });
+    for (let i = 0; i < 100; i++) {
+      const events = sys._rollOvernightEvents({ terrain: 'grass', elevation: 3 });
+      expect(events.length <= 1).toBeTrue();
+    }
+  });
+
+  it('建筑事件优先于道具事件', () => {
+    const { sys } = createOvernightSystem({ items: ['accordion', 'torch', 'sheriff_badge'] });
+    // City + sheriff badge should always return city event, not accordion event
+    const events = sys._rollOvernightEvents({ terrain: 'grass', elevation: 3, building: 'city' });
+    expect(events.length).toBe(1);
+    // Should be a city event, not an accordion event
+    expect(events[0].startsWith('overnight_city') || events[0] === 'overnight_city_rest_sheriff').toBeTrue();
+  });
+
+  it('铲子在水域不触发挖掘', () => {
+    const { sys } = createOvernightSystem({ items: ['shovel'] });
+    let gotDig = false;
+    for (let i = 0; i < 200; i++) {
+      const events = sys._rollOvernightEvents({ terrain: 'water', elevation: 3 });
+      if (events.length > 0 && events[0] === 'overnight_dig') {
+        gotDig = true;
+        break;
+      }
+    }
+    expect(gotDig).toBeFalse();
+  });
+
+  it('房车降低过夜事件概率', () => {
+    // With camper_van (50% reduction), generic events should be less frequent
+    const { sys: sysNormal } = createOvernightSystem();
+    const { sys: sysSafe } = createOvernightSystem({ items: ['camper_van'] });
+
+    let normalCount = 0;
+    let safeCount = 0;
+    const runs = 1000;
+
+    for (let i = 0; i < runs; i++) {
+      const e1 = sysNormal._rollOvernightEvents({ terrain: 'grass', elevation: 3 });
+      if (e1.length > 0) normalCount++;
+      const e2 = sysSafe._rollOvernightEvents({ terrain: 'grass', elevation: 3 });
+      if (e2.length > 0) safeCount++;
+    }
+
+    // Safe count should be noticeably lower than normal count
+    // (not a strict test due to randomness, but with 1000 runs it should be clear)
+    expect(safeCount < normalCount).toBeTrue();
+  });
+});
+
+// ============================================================
+// _rollBuildingOvernightEvent
+// ============================================================
+describe('TurnSystem — _rollBuildingOvernightEvent', () => {
+  const overnightItemConfig2 = {
+    items: {
+      ...itemConfig.items,
+      thief_medal: {
+        name: '盗贼勋章',
+        quality: 'uncommon',
+        effects: [{ type: 'event_option_unlock', optionTag: 'thief_immunity' }],
+      },
+      sheriff_badge: {
+        name: '警长勋章',
+        quality: 'uncommon',
+        effects: [{ type: 'event_option_unlock', optionTag: 'arrest' }],
+      },
+      hoe: {
+        name: '锄头',
+        quality: 'common',
+        effects: [{ type: 'event_option_unlock', optionTag: 'clear_path' }],
+      },
+    },
+  };
+
+  function createSys2(items) {
+    const player = new PlayerState({ hp: 80, hpMax: 100, ap: 5, apMax: 5, turnNumber: 1 });
+    const itemSys = new ItemSystem(overnightItemConfig2);
+    if (items) items.forEach(id => itemSys.addItem(id));
+    const eventBus = new EventBus();
+    return new TurnSystem(player, terrainConfig, itemSys, eventBus);
+  }
+
+  it('无建筑返回 null', () => {
+    const sys = createSys2();
+    const result = sys._rollBuildingOvernightEvent({ terrain: 'grass' }, 1);
+    expect(result === null).toBeTrue();
+  });
+
+  it('未知建筑返回 null', () => {
+    const sys = createSys2();
+    const result = sys._rollBuildingOvernightEvent({ terrain: 'grass', building: 'unknown' }, 1);
+    expect(result === null).toBeTrue();
+  });
+
+  it('城市 + 盗贼勋章: 概率返回 overnight_city_thief', () => {
+    const sys = createSys2(['thief_medal']);
+    let gotThief = false;
+    let gotOther = false;
+    for (let i = 0; i < 200; i++) {
+      const result = sys._rollBuildingOvernightEvent({ terrain: 'grass', building: 'city' }, 1);
+      if (result === 'overnight_city_thief') gotThief = true;
+      else gotOther = true;
+    }
+    // Should sometimes get thief (30%) and sometimes not
+    expect(gotThief).toBeTrue();
+    expect(gotOther).toBeTrue();
+  });
+});
+
+// ============================================================
+// _rollGenericOvernightEvent
+// ============================================================
+describe('TurnSystem — _rollGenericOvernightEvent', () => {
+  it('高海拔/浮冰增加生病概率', () => {
+    const { sys: sysNormal } = createSystem();
+    const { sys: sysIce } = createSystem();
+
+    let normalSick = 0;
+    let iceSick = 0;
+    const runs = 5000;
+
+    for (let i = 0; i < runs; i++) {
+      const e1 = sysNormal._rollGenericOvernightEvent({ terrain: 'grass', elevation: 3 }, {}, 1);
+      if (e1 === 'overnight_sick') normalSick++;
+      const e2 = sysIce._rollGenericOvernightEvent({ terrain: 'ice', elevation: 9 }, {}, 1);
+      if (e2 === 'overnight_sick') iceSick++;
+    }
+
+    // Ice + high elevation should have more sick events
+    expect(iceSick > normalSick).toBeTrue();
+  });
+});

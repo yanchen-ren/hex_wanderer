@@ -196,7 +196,7 @@ export class Camera {
     });
 
     const onMove = (e) => {
-      if (!isDragging) return;
+      if (!isDragging || isPinching) return;
       const nx = e.clientX - dragStartX;
       const ny = e.clientY - dragStartY;
       if (Math.abs(nx - this.x) > 3 || Math.abs(ny - this.y) > 3) {
@@ -218,8 +218,12 @@ export class Camera {
 
     // ── Pinch zoom ──
     let lastPinchDist = 0;
+    let isPinching = false;
+
     canvas.addEventListener('touchstart', (e) => {
       if (e.touches.length === 2) {
+        isPinching = true;
+        isDragging = false; // cancel any drag
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         lastPinchDist = Math.sqrt(dx * dx + dy * dy);
@@ -227,7 +231,8 @@ export class Camera {
     }, { passive: true });
 
     canvas.addEventListener('touchmove', (e) => {
-      if (e.touches.length === 2) {
+      if (e.touches.length === 2 && isPinching) {
+        e.preventDefault?.();
         const dx = e.touches[0].clientX - e.touches[1].clientX;
         const dy = e.touches[0].clientY - e.touches[1].clientY;
         const dist = Math.sqrt(dx * dx + dy * dy);
@@ -240,9 +245,14 @@ export class Camera {
         }
         lastPinchDist = dist;
       }
-    }, { passive: true });
+    }, { passive: false });
 
-    canvas.addEventListener('touchend', () => { lastPinchDist = 0; }, { passive: true });
+    canvas.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) {
+        isPinching = false;
+        lastPinchDist = 0;
+      }
+    }, { passive: true });
   }
 
   /** Whether the last pointer interaction was a drag (not a click) */

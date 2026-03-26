@@ -50,6 +50,12 @@ export class GameLoop {
 
     /** Currently selected tile {col, row} or null */
     this._selectedTile = null;
+
+    /** Mystery egg hatch tracking: turn number when egg was picked up */
+    this._mysteryEggPickupTurn = null;
+
+    /** Track building events triggered this turn to prevent re-trigger: Set of "col,row" */
+    this._buildingEventsTriggeredThisTurn = new Set();
   }
 
   /** Start the game loop — wire events and transition to PLAYING */
@@ -66,6 +72,14 @@ export class GameLoop {
 
   _wireEvents() {
     const eb = this.eventBus;
+
+    // Remove any previous GameLoop listeners to prevent duplicates
+    eb.off('hex:click');
+    eb.off('ui:end-turn');
+    eb.off('ui:center-player');
+    eb.off('ui:request-save');
+    eb.off('ui:import-save');
+    eb.off('hud:item-click');
 
     // Hex click → select / move
     eb.on('hex:click', (data) => this._onHexClick(data));
@@ -157,13 +171,22 @@ export class GameLoop {
     this.playerState.position = { q: col, r: row };
     this._selectedTile = null;
 
-    // Fall damage notification
-    if (result.damage > 0) {
-      this.eventBus.emit('ui:toast', `⚠️ 摔伤 -${result.damage} HP`);
+    // Fall damage dialog (Task 5.2/5.3/5.4)
+    if (result.fallDamageEvent && result.pendingFallDamage > 0) {
+      await this._handleFallDamage(result.pendingFallDamage);
+      if (this.state !== STATES.PLAYING) return;
+    }
+
+    // Bleed damage notification
+    if (result.bleedDamage > 0) {
+      this.eventBus.emit('ui:toast', `🩸 流血 -${result.bleedDamage} HP`);
     }
 
     // Terrain enter damage
     this._applyTerrainEnterEffects(toTile);
+
+    // Desert thirst field effect
+    this._applyFieldEffects(toTile);
 
     // Check death after move damage
     if (this.playerState.hp <= 0) {
@@ -181,13 +204,25 @@ export class GameLoop {
 
     // Check building effects
     const tile = this.mapData.getTile(col, row);
+    let buildingHandledEvent = false;
     if (tile.building) {
-      await this._handleBuilding(tile, col, row);
-      if (this.state !== STATES.PLAYING) return;
+      const bKey = `${col},${row}`;
+      const bDef = this.buildingSystem.getBuildingDef(tile.building);
+      // Skip building event if already triggered this turn (cooldown)
+      if (bDef?.triggerEvent && this._buildingEventsTriggeredThisTurn.has(bKey)) {
+        buildingHandledEvent = true; // skip both building and tile event
+      } else {
+        await this._handleBuilding(tile, col, row);
+        if (this.state !== STATES.PLAYING) return;
+        if (bDef?.triggerEvent) {
+          buildingHandledEvent = true;
+          this._buildingEventsTriggeredThisTurn.add(bKey);
+        }
+      }
     }
 
-    // Check tile event
-    if (tile.event) {
+    // Check tile event (skip if building already handled it)
+    if (tile.event && !buildingHandledEvent) {
       await this._handleTileEvent(tile, col, row);
       if (this.state !== STATES.PLAYING) return;
     }
@@ -205,6 +240,72 @@ export class GameLoop {
     }
 
     this._updateHUD();
+  }
+
+  // ── Fall damage handling (Task 5) ─────────────────────────
+
+  /**
+   * Handle pending fall damage: show dialog, optionally use parachute, apply damage, 30% bleed.
+   * @param {number} damage - Pending fall damage amount
+   */
+  async _handleFallDamage(damage) {
+    const hasParachute = this.itemSystem.hasActiveItem('parachute')
+      && this.itemSystem.isConsumable('parachute');
+
+    if (hasParachute) {
+      // Show parachute choice dialog (Task 5.3)
+      const choiceIdx = await this.uiManager.dialog.showEvent({
+        title: '⚠️ 即将摔伤！',
+        description: `你从高处跌落，即将受到 ${damage} 点伤害！`,
+        choices: [
+          { text: '🪂 使用降落伞（消耗）' },
+          { text: '💪 硬扛' },
+        ],
+      });
+
+      if (choiceIdx === 0) {
+        // Use parachute — immune to damage, consume it
+        this.itemSystem.consumeItem('parachute');
+        await this.uiManager.dialog.showResult({
+          message: '🪂 降落伞展开，你安全着陆！',
+          effects: ['降落伞已消耗'],
+        });
+        this._updateHUD();
+        return;
+      }
+    }
+
+    // Apply fall damage
+    const { actualDamage } = this.playerState.applyDamage(damage, 'fall');
+
+    // 30% chance to add bleed status (Task 5.4)
+    let bleedApplied = false;
+    if (Math.random() < 0.3) {
+      const immunities = this.itemSystem.getActiveEffects().statusImmunities;
+      if (!immunities.includes('bleed')) {
+        this.playerState.addStatusEffect({ id: 'bleed' });
+        bleedApplied = true;
+      }
+    }
+
+    // Build effects list for dialog
+    const effects = [`💔 HP -${actualDamage}`];
+    if (bleedApplied) {
+      effects.push('🩸 获得流血状态（1回合）');
+    }
+
+    // Show fall damage result dialog (Task 5.2)
+    await this.uiManager.dialog.showResult({
+      message: `⚠️ 摔伤！你从高处跌落，受到 ${actualDamage} 点伤害`,
+      effects,
+    });
+
+    this._updateHUD();
+
+    // Check death after fall damage
+    if (this.playerState.hp <= 0) {
+      await this._onDeath();
+    }
   }
 
   // ── Terrain enter effects ───────────────────────────────────
@@ -233,8 +334,6 @@ export class GameLoop {
         if (!immunities.includes(tc.statusOnEnter)) {
           this.playerState.addStatusEffect({
             id: tc.statusOnEnter,
-            duration: 3,
-            effect: { apCostModifier: 1 },
           });
           this.eventBus.emit('ui:toast', `☠️ 获得状态: ${tc.statusOnEnter}`);
         }
@@ -243,6 +342,40 @@ export class GameLoop {
   }
 
   // ── Building handling ───────────────────────────────────────
+
+  /**
+   * Apply terrain field effects (e.g. desert thirst).
+   * These are probabilistic effects triggered on move, not enter damage.
+   */
+  _applyFieldEffects(toTile) {
+    const tc = this.configs.terrain?.terrainTypes?.[toTile.terrain];
+    if (!tc?.fieldEffect) return;
+
+    const fe = tc.fieldEffect;
+    if (fe.type === 'thirst' && fe.chance > 0) {
+      if (Math.random() < fe.chance) {
+        // Check immunity via item
+        if (fe.immuneItem) {
+          const hasImmune = this.itemSystem.hasActiveItem(fe.immuneItem);
+          // Also check elixir as immune
+          const hasElixir = this.itemSystem.hasActiveItem('elixir');
+          if (hasImmune || hasElixir) {
+            return;
+          }
+        }
+        // Apply thirst: lose AP and HP
+        const apLoss = fe.apLoss ?? 0.5;
+        const hpLoss = fe.hpLoss ?? 3;
+        this.playerState.ap = Math.max(0, this.playerState.ap - apLoss);
+        if (hpLoss > 0) {
+          this.playerState.applyDamage(hpLoss, 'thirst');
+        }
+        this.eventBus.emit('ui:toast', `🏜️ 干渴 -${apLoss} AP -${hpLoss} HP`);
+      }
+    }
+  }
+
+  // ── Building handling (original) ────────────────────────────
 
   async _handleBuilding(tile, col, row) {
     const result = this.buildingSystem.triggerBuildingEffect(
@@ -270,6 +403,20 @@ export class GameLoop {
       await this._handleTileEvent(eventTile, col, row);
     }
 
+    // --- Passive AP restore (spring) ---
+    if (result.type === 'passive_ap_restore') {
+      const apRestore = result.apRestore ?? 0;
+      if (apRestore > 0) {
+        if (result.fullRestore) {
+          this.playerState.ap = this.playerState.apMax;
+        } else {
+          this.playerState.ap = Math.min(this.playerState.apMax, this.playerState.ap + apRestore);
+        }
+        this.eventBus.emit('ui:toast', `🌊 ${result.message}`);
+        this._updateHUD();
+      }
+    }
+
     if (result.message && result.type !== 'win_condition' && result.type !== 'teleport' && result.type !== 'trigger_event') {
       this.eventBus.emit('ui:toast', `🏗️ ${result.message}`);
     }
@@ -278,6 +425,13 @@ export class GameLoop {
   // ── Event handling ──────────────────────────────────────────
 
   async _handleTileEvent(tile, col, row) {
+    // Handle item pickup events (item_pickup_xxx format)
+    if (typeof tile.event === 'string' && tile.event.startsWith('item_pickup_')) {
+      const itemId = tile.event.replace('item_pickup_', '');
+      await this._handleItemPickup(itemId, col, row);
+      return;
+    }
+
     const eventInstance = this.eventSystem.triggerEvent(tile);
     if (!eventInstance) return;
 
@@ -306,16 +460,56 @@ export class GameLoop {
     // Apply outcome
     const effectMessages = await this._applyEventOutcome(outcome);
 
-    // Show result
-    const resultMsg = outcome.message || '事件结束';
-    await this.uiManager.dialog.showResult({
-      message: resultMsg,
-      effects: effectMessages,
-    });
+    // Show result dialog — skip for "nothing" outcomes with no message (v1.2 Task 1.4)
+    const resultMsg = outcome.message || '';
+    const hasEffects = effectMessages.length > 0;
+    const isNothingWithNoMessage = outcome.type === 'nothing' && !resultMsg && !hasEffects;
 
-    // Remove event from tile (one-time)
+    if (!isNothingWithNoMessage) {
+      await this.uiManager.dialog.showResult({
+        message: resultMsg || '事件结束',
+        effects: effectMessages,
+      });
+    }
+
+    // Show combination dialog if a combination happened during the event
+    if (this._pendingCombination) {
+      const combo = this._pendingCombination;
+      this._pendingCombination = null;
+      const resultDef = this.configs.item?.items?.[combo.result];
+      const matADef = this.configs.item?.items?.[combo.consumed[0]];
+      const matBDef = this.configs.item?.items?.[combo.consumed[1]];
+      await this.uiManager.dialog.showResult({
+        message: '🔀 道具组合！',
+        effects: [
+          `${matADef?.name || combo.consumed[0]} + ${matBDef?.name || combo.consumed[1]}`,
+          `→ ${resultDef?.name || combo.result}`,
+          resultDef?.description || '',
+        ],
+      });
+    }
+
+    // Remove event from tile — but keep if:
+    // 1. Repeatable building event
+    // 2. Relic events where player didn't get the fragment yet
     const actualTile = this.mapData.getTile(col, row);
-    if (actualTile) actualTile.event = null;
+    if (actualTile) {
+      const buildingDef = actualTile.building
+        ? this.buildingSystem.getBuildingDef(actualTile.building)
+        : null;
+      const isRepeatable = buildingDef && buildingDef.repeatable;
+      const isRelicEvent = typeof actualTile.event === 'string' &&
+        actualTile.event.startsWith('relic_');
+      // For relic events: only clear if player got a fragment this interaction
+      const gotFragment = effectMessages.some(m => m.includes('圣物碎片'));
+      if (isRepeatable) {
+        // Keep repeatable building events
+      } else if (isRelicEvent && !gotFragment) {
+        // Keep relic event — player can come back
+      } else {
+        actualTile.event = null;
+      }
+    }
 
     // Refresh render to remove event marker
     this.renderEngine.updateFogLayer();
@@ -326,7 +520,86 @@ export class GameLoop {
     // Check death after event
     if (this.playerState.hp <= 0) {
       await this._onDeath();
+      return;
     }
+
+    // After teleport: check events/buildings at destination
+    if (this._pendingTeleportTarget) {
+      const tp = this._pendingTeleportTarget;
+      this._pendingTeleportTarget = null;
+      const destTile = this.mapData.getTile(tp.q, tp.r);
+      if (destTile) {
+        if (destTile.building) {
+          await this._handleBuilding(destTile, tp.q, tp.r);
+          if (this.state !== STATES.PLAYING) return;
+        }
+        if (destTile.event && !destTile.building) {
+          await this._handleTileEvent(destTile, tp.q, tp.r);
+          if (this.state !== STATES.PLAYING) return;
+        }
+      }
+    }
+  }
+
+  /**
+   * Handle item_pickup_xxx events: show dialog, give item to player.
+   */
+  async _handleItemPickup(itemId, col, row) {
+    const def = this.configs.item?.items?.[itemId];
+    const itemName = def?.name || itemId;
+
+    this.state = STATES.EVENT_DIALOG;
+
+    const choiceIdx = await this.uiManager.dialog.showEvent({
+      title: '🎁 发现物品',
+      description: `你发现了一件物品：${itemName}。${def?.description || ''}`,
+      choices: [
+        { text: `拾取 ${itemName}` },
+        { text: '离开' },
+      ],
+    });
+
+    if (choiceIdx === 0) {
+      if (this.itemSystem.addItem(itemId)) {
+        await this.uiManager.dialog.showResult({
+          message: `获得了 ${itemName}！`,
+          effects: [`🎁 ${itemName}: ${def?.description || ''}`],
+        });
+
+        // Check combinations
+        const combo = this.itemSystem.checkCombinations();
+        if (combo.combined) {
+          const resultDef = this.configs.item?.items?.[combo.result];
+          const matADef = this.configs.item?.items?.[combo.consumed[0]];
+          const matBDef = this.configs.item?.items?.[combo.consumed[1]];
+          await this.uiManager.dialog.showResult({
+            message: '🔀 道具组合！',
+            effects: [
+              `${matADef?.name || combo.consumed[0]} + ${matBDef?.name || combo.consumed[1]}`,
+              `→ ${resultDef?.name || combo.result}`,
+              resultDef?.description || '',
+            ],
+          });
+        }
+      } else {
+        await this.uiManager.dialog.showResult({
+          message: `你已经拥有 ${itemName} 了`,
+          effects: [],
+        });
+      }
+    }
+
+    // Remove item from tile
+    const actualTile = this.mapData.getTile(col, row);
+    if (actualTile && choiceIdx === 0) actualTile.event = null;
+
+    // Refresh fog immediately (vision items like telescope take effect now)
+    const pCol = this.playerState.position.q;
+    const pRow = this.playerState.position.r;
+    this._updateFogOffset(pCol, pRow);
+    this.renderEngine.updateFogLayer();
+    this.state = STATES.PLAYING;
+    this._updateHUD();
   }
 
   async _applyEventOutcome(outcome) {
@@ -341,6 +614,16 @@ export class GameLoop {
       } else if (val < 0) {
         const { actualDamage } = this.playerState.applyDamage(Math.abs(val));
         effects.push(`💔 HP -${actualDamage}`);
+
+        // Hunting dog death chance after combat damage (Task 9.5)
+        if (actualDamage > 0 && this.itemSystem.hasItem('hunting_dog')) {
+          const dogDef = this.configs.item?.items?.['hunting_dog'];
+          const deathChance = dogDef?.deathChance ?? 0.2;
+          if (Math.random() < deathChance) {
+            this.itemSystem.consumeItem('hunting_dog');
+            effects.push('🐕 猎犬在战斗中牺牲了…');
+          }
+        }
       }
     }
 
@@ -356,6 +639,17 @@ export class GameLoop {
         if (this.itemSystem.addItem(itemId)) {
           const def = this.configs.item?.items?.[itemId];
           effects.push(`🎁 获得: ${def?.name || itemId}`);
+
+          // Check combinations after adding item
+          const combo = this.itemSystem.checkCombinations();
+          if (combo.combined) {
+            const resultDef = this.configs.item?.items?.[combo.result];
+            const matADef = this.configs.item?.items?.[combo.consumed[0]];
+            const matBDef = this.configs.item?.items?.[combo.consumed[1]];
+            effects.push(`🔀 ${matADef?.name || combo.consumed[0]} + ${matBDef?.name || combo.consumed[1]} → ${resultDef?.name || combo.result}`);
+            this._pendingCombination = combo;
+          }
+
           break; // Only give one item per reward
         }
       }
@@ -371,8 +665,7 @@ export class GameLoop {
       if (!immunities.includes(outcome.statusId)) {
         this.playerState.addStatusEffect({
           id: outcome.statusId,
-          duration: outcome.duration || 3,
-          effect: { apCostModifier: 1 },
+          duration: outcome.duration,
         });
         effects.push(`☠️ 状态: ${outcome.statusId} (${outcome.duration}回合)`);
       } else {
@@ -403,6 +696,182 @@ export class GameLoop {
       effects.push(`💪 HP上限 ${val > 0 ? '+' : ''}${val}`);
     }
 
+    if (outcome.type === 'ap_max_change') {
+      const val = outcome.value ?? 0;
+      this.playerState.apMax += val;
+      if (val > 0) this.playerState.ap = Math.min(this.playerState.apMax, this.playerState.ap + val);
+      effects.push(`⚡ AP上限 ${val > 0 ? '+' : ''}${val}`);
+    }
+
+    if (outcome.type === 'gold_change') {
+      const val = outcome.value ?? 0;
+      if (val < 0 && this.playerState.gold <= 0) {
+        effects.push('🪙 你身无分文，没有金币可以损失');
+      } else {
+        const before = this.playerState.gold;
+        this.playerState.gold = Math.max(0, this.playerState.gold + val);
+        const actual = this.playerState.gold - before;
+        effects.push(`🪙 金币 ${actual >= 0 ? '+' : ''}${actual}`);
+      }
+    }
+
+    // --- New result types (v1.2 Task 1.2) ---
+
+    if (outcome.type === 'teleport_random') {
+      const target = this._findRandomExploredTile();
+      if (target) {
+        this.playerState.position = { q: target.q, r: target.r };
+        this._updateFogOffset(target.q, target.r);
+        this.renderEngine.updatePlayerPosition(target.q, target.r);
+        await this.renderEngine.centerOnTile(target.q, target.r);
+        effects.push(`⚡ 随机传送至 (${target.q}, ${target.r})`);
+        this._pendingTeleportTarget = target;
+      } else {
+        effects.push('⚡ 传送失败，无可用目标');
+      }
+    }
+
+    if (outcome.type === 'teleport_building') {
+      const buildingType = outcome.buildingType;
+      const target = this._findRandomBuildingTile(buildingType);
+      if (target) {
+        this.playerState.position = { q: target.q, r: target.r };
+        this._updateFogOffset(target.q, target.r);
+        this.renderEngine.updatePlayerPosition(target.q, target.r);
+        await this.renderEngine.centerOnTile(target.q, target.r);
+        effects.push(`⚡ 传送至${buildingType} (${target.q}, ${target.r})`);
+        this._pendingTeleportTarget = target;
+      } else {
+        effects.push('⚡ 传送失败，未找到目标建筑');
+      }
+    }
+
+    if (outcome.type === 'consume_item') {
+      const itemId = outcome.itemId;
+      if (this.itemSystem.consumeItem(itemId)) {
+        const def = this.configs.item?.items?.[itemId];
+        effects.push(`🗑️ 消耗: ${def?.name || itemId}`);
+      }
+    }
+
+    if (outcome.type === 'remove_status') {
+      const statusId = outcome.statusId;
+      if (this.playerState.removeStatusEffect(statusId)) {
+        effects.push(`✨ 解除状态: ${statusId}`);
+      } else {
+        effects.push(`✨ 无需解除: ${statusId}`);
+      }
+    }
+
+    if (outcome.type === 'vision_permanent') {
+      const val = outcome.value ?? 1;
+      this.playerState._permanentVisionBonus = (this.playerState._permanentVisionBonus ?? 0) + val;
+      // Refresh fog immediately so new vision takes effect
+      const vpCol = this.playerState.position.q;
+      const vpRow = this.playerState.position.r;
+      this._updateFogOffset(vpCol, vpRow);
+      this.renderEngine.updateFogLayer();
+      effects.push(`👁️ 永久视野 +${val}`);
+    }
+
+    if (outcome.type === 'reset_combat_events') {
+      let resetCount = 0;
+      const allTiles = this.mapData.getAllTiles();
+      const eventDefs = this.configs.event?.events ?? {};
+      for (const tile of allTiles) {
+        if (!tile.event) {
+          // Check if this tile originally had a combat event that was consumed
+          // We can't restore consumed events, but we can re-place combat events on empty explored tiles
+          continue;
+        }
+      }
+      // Reset: re-enable combat events that were cleared (tile.event set to null)
+      // Actually, we mark tiles that had combat events cleared — but we don't track that.
+      // Instead, re-place some combat events on explored empty tiles
+      for (const tile of allTiles) {
+        if (tile.event || tile.building) continue;
+        const vis = this.fogSystem.getTileVisibility(tile.q, tile.r);
+        if (vis === 'unexplored') continue;
+        // Small chance to place a combat event
+        if (Math.random() < 0.1) {
+          const terrainDef = this.configs.terrain?.terrainTypes?.[tile.terrain];
+          const weights = terrainDef?.eventWeights;
+          if (weights && weights.combat > 0) {
+            // Pick a combat event
+            const combatEvents = Object.entries(eventDefs)
+              .filter(([, d]) => d.type === 'combat')
+              .map(([id]) => id);
+            if (combatEvents.length > 0) {
+              tile.event = combatEvents[Math.floor(Math.random() * combatEvents.length)];
+              resetCount++;
+            }
+          }
+        }
+      }
+      this.renderEngine.updateFogLayer();
+      effects.push(`🔄 重置了 ${resetCount} 个战斗事件`);
+    }
+
+    if (outcome.type === 'fog_reveal_random') {
+      const count = outcome.count ?? 5;
+      let revealed = 0;
+      const allTiles = this.mapData.getAllTiles();
+      const unexplored = allTiles.filter(t => this.fogSystem.getTileVisibility(t.q, t.r) === 'unexplored');
+      // Shuffle and reveal up to count
+      for (let i = unexplored.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [unexplored[i], unexplored[j]] = [unexplored[j], unexplored[i]];
+      }
+      for (let i = 0; i < Math.min(count, unexplored.length); i++) {
+        const t = unexplored[i];
+        this.fogSystem._fogState.set(`${t.q},${t.r}`, 'explored');
+        revealed++;
+      }
+      if (revealed > 0) this.renderEngine.updateFogLayer();
+      effects.push(`🗺️ 随机揭开了 ${revealed} 格迷雾`);
+    }
+
+    if (outcome.type === 'trade') {
+      const cost = outcome.goldCost ?? 0;
+      const itemPool = outcome.itemPool ?? [];
+      // Filter out items player already has
+      const available = itemPool.filter(id => !this.itemSystem.hasItem(id));
+      if (this.playerState.gold >= cost && available.length > 0) {
+        this.playerState.gold -= cost;
+        const itemId = available[Math.floor(Math.random() * available.length)];
+        if (this.itemSystem.addItem(itemId)) {
+          const def = this.configs.item?.items?.[itemId];
+          effects.push(`🪙 -${cost} 金币`);
+          effects.push(`🎁 获得: ${def?.name || itemId}`);
+        }
+      } else if (this.playerState.gold >= cost && available.length === 0) {
+        // All items already owned — give gold bonus instead
+        const bonus = Math.floor(cost * 0.5);
+        effects.push(`商人没有你需要的东西。「下次再来吧！」`);
+        if (bonus > 0) {
+          this.playerState.gold += bonus;
+          effects.push(`🪙 商人送了你 ${bonus} 金币作为补偿`);
+        }
+      } else if (this.playerState.gold < cost) {
+        effects.push(`🪙 金币不足（需要 ${cost}）`);
+      }
+    }
+
+    if (outcome.type === 'sacrifice_item') {
+      const itemId = outcome.itemId;
+      if (this.itemSystem.hasItem(itemId)) {
+        const def = this.configs.item?.items?.[itemId];
+        const quality = def?.quality ?? 'common';
+        this.itemSystem.consumeItem(itemId);
+        // Reward based on quality
+        const qualityRewards = { common: 10, uncommon: 25, rare: 50, epic: 100, legendary: 200 };
+        const goldReward = qualityRewards[quality] ?? 10;
+        this.playerState.gold += goldReward;
+        effects.push(`🗑️ 献祭: ${def?.name || itemId}`);
+        effects.push(`🪙 获得 ${goldReward} 金币`);
+      }
+    }
+
     return effects;
   }
 
@@ -424,6 +893,9 @@ export class GameLoop {
     if (endResult.hpChange !== 0) {
       restMsgs.push(`${endResult.hpChange > 0 ? '❤️' : '💔'} HP ${endResult.hpChange > 0 ? '+' : ''}${endResult.hpChange}`);
     }
+    if (endResult.debuffDamage > 0) {
+      restMsgs.push(`☠️ 状态伤害 -${endResult.debuffDamage}`);
+    }
 
     // Check death after rest
     if (this.playerState.hp <= 0) {
@@ -431,7 +903,8 @@ export class GameLoop {
       return;
     }
 
-    // Overnight events
+    // Overnight events — track AP changes to apply after AP restore
+    const apBeforeOvernight = this.playerState.ap;
     const overnightEventIds = this.turnSystem._rollOvernightEvents ? this.turnSystem._rollOvernightEvents(tileData) : [];
     for (const evtId of overnightEventIds) {
       const overnightTile = { ...tileData, event: evtId };
@@ -442,9 +915,16 @@ export class GameLoop {
         return;
       }
     }
+    const overnightApLoss = apBeforeOvernight - this.playerState.ap;
 
     // Start new turn
     const turnResult = this.turnSystem.startNewTurn();
+    this._buildingEventsTriggeredThisTurn.clear();
+
+    // Apply overnight AP penalty after AP restore
+    if (overnightApLoss > 0) {
+      this.playerState.ap = Math.max(0, this.playerState.ap - overnightApLoss);
+    }
 
     // Event refresh every 30 turns
     if (this.playerState.turnNumber % 30 === 0) {
@@ -456,6 +936,24 @@ export class GameLoop {
       if (refreshed.length > 0) {
         this.renderEngine.updateFogLayer();
       }
+    }
+
+    // Mystery egg timer check (Task 9.6)
+    if (this.itemSystem.hasItem('mystery_egg')) {
+      if (this._mysteryEggPickupTurn === null) {
+        this._mysteryEggPickupTurn = this.playerState.turnNumber;
+      }
+      const elapsed = this.playerState.turnNumber - this._mysteryEggPickupTurn;
+      if (elapsed >= 5) {
+        // Hatch the egg
+        this.itemSystem.consumeItem('mystery_egg');
+        this._mysteryEggPickupTurn = null;
+        const hatchTile = { terrain: 'grass', event: 'mystery_egg_hatch' };
+        await this._handleTileEvent(hatchTile, pCol, pRow);
+        if (this.state !== STATES.PLAYING) return;
+      }
+    } else {
+      this._mysteryEggPickupTurn = null;
     }
 
     // Show turn summary
@@ -503,6 +1001,32 @@ export class GameLoop {
   // ── Death ───────────────────────────────────────────────────
 
   async _onDeath() {
+    // Check lethal save items before actual death
+    // Priority: helmet (save at 1HP) > resurrection_cross (full heal)
+    if (this.itemSystem.hasItem('helmet') && this.itemSystem.isConsumable('helmet')) {
+      this.playerState.hp = 1;
+      this.itemSystem.consumeItem('helmet');
+      await this.uiManager.dialog.showResult({
+        message: '⛑️ 安全帽救了你一命！',
+        effects: ['HP 保留 1', '安全帽已损坏'],
+      });
+      this.state = STATES.PLAYING;
+      this._updateHUD();
+      return;
+    }
+
+    if (this.itemSystem.hasItem('resurrection_cross') && this.itemSystem.isConsumable('resurrection_cross')) {
+      this.playerState.hp = this.playerState.hpMax;
+      this.itemSystem.consumeItem('resurrection_cross');
+      await this.uiManager.dialog.showResult({
+        message: '✝️ 重生十字架发出耀眼的光芒！',
+        effects: ['HP 完全恢复', '重生十字架已消耗'],
+      });
+      this.state = STATES.PLAYING;
+      this._updateHUD();
+      return;
+    }
+
     this.state = STATES.GAME_OVER;
 
     const hasSave = !!this.saveSystem.loadAutoSave();
@@ -571,13 +1095,11 @@ export class GameLoop {
     const visibleTiles = this._calculateVisibleTilesOffset(col, row);
     const newVisibleKeys = new Set(visibleTiles.map(h => `${h.col},${h.row}`));
 
-    // Use FogSystem's internal state via its methods
-    // First demote old visible to explored
+    // Demote old visible to explored
     const allTiles = this.mapData.getAllTiles();
     for (const t of allTiles) {
       const key = `${t.q},${t.r}`;
       if (this.fogSystem.getTileVisibility(t.q, t.r) === 'visible' && !newVisibleKeys.has(key)) {
-        // Demote to explored — access internal state
         this.fogSystem._fogState.set(key, 'explored');
       }
     }
@@ -585,6 +1107,27 @@ export class GameLoop {
     // Set new visible
     for (const h of visibleTiles) {
       this.fogSystem._fogState.set(`${h.col},${h.row}`, 'visible');
+    }
+
+    // Compass: always reveal portal tile
+    if (this.itemSystem && this.itemSystem.hasActiveItem('compass')) {
+      const portalPos = this.mapData.portalPosition;
+      if (portalPos) {
+        const pKey = `${portalPos.q},${portalPos.r}`;
+        this.fogSystem._fogState.set(pKey, 'visible');
+      }
+    }
+
+    // Treasure map: also reveal relic positions
+    if (this.itemSystem && this.itemSystem.hasActiveItem('treasure_map')) {
+      const portalPos = this.mapData.portalPosition;
+      if (portalPos) {
+        this.fogSystem._fogState.set(`${portalPos.q},${portalPos.r}`, 'visible');
+      }
+      const relicPositions = this.mapData.relicPositions ?? [];
+      for (const rp of relicPositions) {
+        this.fogSystem._fogState.set(`${rp.q},${rp.r}`, 'visible');
+      }
     }
   }
 
@@ -680,6 +1223,34 @@ export class GameLoop {
   }
 
   /**
+   * Find a random explored/visible tile for teleport_random.
+   * @returns {{q: number, r: number}|null}
+   */
+  _findRandomExploredTile() {
+    const allTiles = this.mapData.getAllTiles();
+    const candidates = allTiles.filter(t => {
+      const vis = this.fogSystem.getTileVisibility(t.q, t.r);
+      return (vis === 'visible' || vis === 'explored') && t.terrain !== 'water';
+    });
+    if (candidates.length === 0) return null;
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    return { q: pick.q, r: pick.r };
+  }
+
+  /**
+   * Find a random tile with a specific building type for teleport_building.
+   * @param {string} buildingType
+   * @returns {{q: number, r: number}|null}
+   */
+  _findRandomBuildingTile(buildingType) {
+    const allTiles = this.mapData.getAllTiles();
+    const candidates = allTiles.filter(t => t.building === buildingType);
+    if (candidates.length === 0) return null;
+    const pick = candidates[Math.floor(Math.random() * candidates.length)];
+    return { q: pick.q, r: pick.r };
+  }
+
+  /**
    * Reveal an area around a position (for reveal_map event effect)
    */
   _revealArea(col, row, radius) {
@@ -762,7 +1333,9 @@ export class GameLoop {
       hpMax: this.playerState.hpMax,
       turn: this.playerState.turnNumber,
       relics: this.playerState.relicsCollected,
+      gold: this.playerState.gold,
       items,
+      statusEffects: this.playerState.statusEffects.map(se => ({ id: se.id, duration: se.duration })),
     });
   }
 }

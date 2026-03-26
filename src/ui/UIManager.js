@@ -195,13 +195,13 @@ export class UIManager {
     this._toastEl = document.createElement('div');
     this._toastEl.id = 'ui-toast';
     this._toastEl.className = [
-      'absolute', 'bottom-14', 'left-1/2', '-translate-x-1/2',
+      'absolute', 'bottom-16', 'left-1/2', '-translate-x-1/2',
       'z-40', 'hidden',
       'bg-gray-800/90', 'backdrop-blur-sm',
       'rounded-lg', 'px-3', 'py-1.5',
       'text-xs', 'text-gray-200', 'shadow-md',
       'pointer-events-none', 'transition-opacity',
-      'max-w-[90vw]', 'text-center', 'whitespace-nowrap',
+      'max-w-[80vw]', 'text-center',
     ].join(' ');
     this.container.appendChild(this._toastEl);
   }

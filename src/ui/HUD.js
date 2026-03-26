@@ -18,7 +18,9 @@ export class HUD {
       hp: 100, hpMax: 100,
       turn: 1,
       relics: 0,
+      gold: 0,
       items: [], // [{ itemId, name, description, quality, enabled, sprite }]
+      statusEffects: [], // [{ id, duration }]
     };
   }
 
@@ -86,7 +88,18 @@ export class HUD {
       <div class="flex items-center gap-3 text-gray-300">
         <span>🔄 回合 <span class="text-white font-bold">${s.turn}</span></span>
         <span>💎 ${s.relics}/3</span>
+        <span>🪙 ${s.gold}</span>
       </div>`;
+
+    // Active debuffs
+    if (s.statusEffects && s.statusEffects.length > 0) {
+      html += `<div class="flex flex-wrap gap-1 mt-1 border-t border-gray-700 pt-1">`;
+      for (const se of s.statusEffects) {
+        const icon = HUD._debuffIcon(se.id);
+        html += `<span class="px-1 rounded bg-gray-700/60 text-xs" title="${se.id} (${se.duration}回合)">${icon}${se.duration}</span>`;
+      }
+      html += `</div>`;
+    }
 
     // Item icons
     if (s.items.length > 0) {
@@ -150,6 +163,17 @@ export class HUD {
       tent: '⛺', four_leaf_clover: '🍀', antidote: '💊',
     };
     return map[itemId] || '📦';
+  }
+
+  /** Map debuff id to icon */
+  static _debuffIcon(statusId) {
+    const map = {
+      poison: '☠️',
+      frostbite: '🥶',
+      curse: '💀',
+      bleed: '🩸',
+    };
+    return map[statusId] || '⚠️';
   }
 
   destroy() {

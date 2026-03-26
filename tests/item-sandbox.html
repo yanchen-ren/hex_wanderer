@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HexWanderer 道具测试沙盒</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #1a1a2e; color: #eee; padding: 16px; max-width: 800px; margin: 0 auto; }
+    h1 { font-size: 20px; margin-bottom: 4px; }
+    .subtitle { font-size: 12px; color: #888; margin-bottom: 16px; }
+    .section { background: #16213e; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .section h2 { font-size: 14px; color: #4fc3f7; margin-bottom: 8px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+    .item-btn { padding: 6px 8px; border-radius: 6px; border: 1px solid #333; background: #2a2a4a; color: #ccc; font-size: 11px; cursor: pointer; text-align: left; transition: all 0.15s; }
+    .item-btn:hover { background: #3a3a6a; border-color: #4fc3f7; }
+    .item-btn.owned { background: #1b4332; border-color: #2d6a4f; color: #a7f3d0; }
+    .item-btn .quality { font-size: 9px; opacity: 0.7; }
+    .stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+    .stat { background: #2a2a4a; padding: 4px 10px; border-radius: 4px; font-size: 12px; }
+    .stat span { color: #4fc3f7; font-weight: bold; }
+    .log { background: #0f0f23; border-radius: 6px; padding: 8px; max-height: 200px; overflow-y: auto; font-size: 11px; font-family: monospace; color: #888; }
+    .log .entry { margin: 2px 0; }
+    .log .entry.good { color: #4ade80; }
+    .log .entry.bad { color: #f87171; }
+    .log .entry.info { color: #60a5fa; }
+    .controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+    .controls button { padding: 5px 10px; border-radius: 4px; border: none; background: #4fc3f7; color: #111; font-size: 12px; font-weight: bold; cursor: pointer; }
+    .controls button:hover { background: #29b6f6; }
+    .controls button.danger { background: #ef4444; color: white; }
+    .debuff-row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .debuff { padding: 3px 8px; border-radius: 4px; background: #4a1a1a; color: #fca5a5; font-size: 11px; }
+  </style>
+</head>
+<body>
+  <h1>🧪 道具测试沙盒</h1>
+  <p class="subtitle">点击道具添加到背包 · 测试效果和组合</p>
+
+  <div class="section">
+    <h2>玩家状态</h2>
+    <div class="stat-row" id="stats"></div>
+    <div class="debuff-row" id="debuffs"></div>
+  </div>
+
+  <div class="section">
+    <h2>操作</h2>
+    <div class="controls">
+      <button onclick="addGold(50)">+50 金币</button>
+      <button onclick="addGold(-20)">-20 金币</button>
+      <button onclick="takeDamage(20)">受伤 20</button>
+      <button onclick="heal(30)">治疗 30</button>
+      <button onclick="addDebuff('poison')">+中毒</button>
+      <button onclick="addDebuff('frostbite')">+冻伤</button>
+      <button onclick="addDebuff('curse')">+诅咒</button>
+      <button onclick="addDebuff('bleed')">+流血</button>
+      <button onclick="endTurn()">结束回合</button>
+      <button onclick="resetAll()" class="danger">重置</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>背包 (<span id="inv-count">0</span>)</h2>
+    <div class="grid" id="inventory"></div>
+  </div>
+
+  <div class="section">
+    <h2>所有道具 (点击添加)</h2>
+    <div class="grid" id="all-items"></div>
+  </div>
+
+  <div class="section">
+    <h2>效果汇总</h2>
+    <pre id="effects" style="font-size:11px;color:#aaa;white-space:pre-wrap;"></pre>
+  </div>
+
+  <div class="section">
+    <h2>日志</h2>
+    <div class="log" id="log"></div>
+  </div>
+
+  <script type="module">
+    import { ItemSystem } from '../src/systems/ItemSystem.js';
+    import { PlayerState } from '../src/systems/PlayerState.js';
+
+    let itemConfig = null;
+    let itemSystem = null;
+    let player = null;
+
+    const qualityColors = { common: '#9ca3af', uncommon: '#4ade80', rare: '#60a5fa', epic: '#c084fc', legendary: '#fb923c' };
+    const debuffIcons = { poison: '☠️', frostbite: '🥶', curse: '💀', bleed: '🩸' };
+
+    function log(msg, type = '') {
+      const el = document.getElementById('log');
+      const entry = document.createElement('div');
+      entry.className = `entry ${type}`;
+      entry.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+      el.prepend(entry);
+    }
+
+    function updateUI() {
+      // Stats
+      const s = document.getElementById('stats');
+      s.innerHTML = `
+        <div class="stat">❤️ HP <span>${player.hp}/${player.hpMax}</span></div>
+        <div class="stat">⚡ AP <span>${player.ap}/${player.apMax}</span></div>
+        <div class="stat">🪙 金币 <span>${player.gold}</span></div>
+        <div class="stat">🔄 回合 <span>${player.turnNumber}</span></div>
+        <div class="stat">💎 圣物 <span>${player.relicsCollected}/3</span></div>
+      `;
+
+      // Debuffs
+      const d = document.getElementById('debuffs');
+      d.innerHTML = player.statusEffects.map(se =>
+        `<div class="debuff">${debuffIcons[se.id] || '⚠️'} ${se.id} (${se.duration}回合)</div>`
+      ).join('');
+
+      // Inventory
+      const inv = document.getElementById('inventory');
+      const items = itemSystem.getInventory();
+      document.getElementById('inv-count').textContent = items.length;
+      inv.innerHTML = items.map(item => {
+        const color = qualityColors[item.quality] || '#888';
+        return `<div class="item-btn owned" onclick="removeItem('${item.itemId}')" style="border-left:3px solid ${color}">
+          ${item.name}<br><span class="quality">${item.quality} ${item.enabled ? '✅' : '❌'}</span>
+        </div>`;
+      }).join('');
+
+      // All items
+      const all = document.getElementById('all-items');
+      const allItems = Object.entries(itemConfig.items);
+      all.innerHTML = allItems.map(([id, def]) => {
+        const owned = itemSystem.hasItem(id);
+        const color = qualityColors[def.quality] || '#888';
+        const cls = owned ? 'item-btn owned' : 'item-btn';
+        return `<div class="${cls}" onclick="addItem('${id}')" style="border-left:3px solid ${color}">
+          ${def.name}<br><span class="quality">${def.quality}${def.consumable ? ' 🔥' : ''}</span>
+        </div>`;
+      }).join('');
+
+      // Effects
+      const effects = itemSystem.getActiveEffects();
+      document.getElementById('effects').textContent = JSON.stringify(effects, null, 2);
+    }
+
+    window.addItem = function(id) {
+      if (itemSystem.addItem(id)) {
+        log(`获得道具: ${itemConfig.items[id]?.name || id}`, 'good');
+        const combo = itemSystem.checkCombinations();
+        if (combo.combined) {
+          const resultName = itemConfig.items[combo.result]?.name || combo.result;
+          log(`🔀 组合! ${combo.consumed.join(' + ')} → ${resultName}`, 'info');
+        }
+      } else {
+        log(`无法添加: ${id} (已拥有或不存在)`, 'bad');
+      }
+      updateUI();
+    };
+
+    window.removeItem = function(id) {
+      if (itemSystem.consumeItem(id)) {
+        log(`移除道具: ${itemConfig.items[id]?.name || id}`, 'bad');
+      }
+      updateUI();
+    };
+
+    window.addGold = function(amount) {
+      player.gold = Math.max(0, player.gold + amount);
+      log(`金币 ${amount > 0 ? '+' : ''}${amount} → ${player.gold}`, amount > 0 ? 'good' : 'bad');
+      updateUI();
+    };
+
+    window.takeDamage = function(amount) {
+      const { actualDamage } = player.applyDamage(amount, 'test');
+      log(`受伤 -${actualDamage} HP → ${player.hp}`, 'bad');
+      updateUI();
+    };
+
+    window.heal = function(amount) {
+      const healed = player.heal(amount);
+      log(`治疗 +${healed} HP → ${player.hp}`, 'good');
+      updateUI();
+    };
+
+    window.addDebuff = function(id) {
+      player.addStatusEffect({ id });
+      const def = PlayerState.DEBUFF_DEFS[id];
+      log(`获得状态: ${id} (${def?.defaultDuration || '?'}回合)`, 'bad');
+      updateUI();
+    };
+
+    window.endTurn = function() {
+      // Elixir: cleanse all debuffs before tick
+      const effects = itemSystem.getActiveEffects();
+      if (effects.statusCleanseOnTurnEnd) {
+        const before = player.statusEffects.length;
+        player.clearAllDebuffs();
+        if (before > 0) log(`💊 万能药清除了所有负面状态`, 'good');
+      }
+
+      // Tick debuffs
+      for (const se of player.statusEffects) {
+        if (se.id === 'poison' && se.effect?.hpLossPercent) {
+          const loss = Math.max(1, Math.floor(player.hp * se.effect.hpLossPercent));
+          player.applyDamage(loss, 'poison');
+          log(`☠️ 中毒伤害 -${loss} HP`, 'bad');
+        }
+        if (se.id === 'frostbite' && se.effect?.hpLossPerTurn) {
+          player.applyDamage(se.effect.hpLossPerTurn, 'frostbite');
+          log(`🥶 冻伤伤害 -${se.effect.hpLossPerTurn} HP`, 'bad');
+        }
+      }
+      const expired = player.tickStatusEffects();
+      for (const e of expired) {
+        log(`状态消失: ${e.expired}`, 'info');
+      }
+
+      // Mystery egg hatch check
+      if (itemSystem.hasItem('mystery_egg')) {
+        if (!window._eggTurn) window._eggTurn = player.turnNumber;
+        const elapsed = player.turnNumber - window._eggTurn + 1;
+        if (elapsed >= 5) {
+          itemSystem.consumeItem('mystery_egg');
+          window._eggTurn = null;
+          const choices = ['strange_gem', 'antidote', 'feather'];
+          const pick = choices[Math.floor(Math.random() * choices.length)];
+          itemSystem.addItem(pick);
+          log(`🥚 神秘蛋孵化! 获得: ${itemConfig.items[pick]?.name || pick}`, 'good');
+        } else {
+          log(`🥚 神秘蛋: ${elapsed}/5 回合`, 'info');
+        }
+      } else {
+        window._eggTurn = null;
+      }
+
+      player.turnNumber++;
+      player.ap = player.apMax;
+      log(`回合 ${player.turnNumber} 开始, AP 恢复`, 'info');
+      updateUI();
+    };
+
+    window.resetAll = function() {
+      player = new PlayerState({ hp: 100, hpMax: 100, ap: 8, apMax: 8, gold: 0 });
+      itemSystem = new ItemSystem(itemConfig);
+      log('--- 重置 ---', 'info');
+      updateUI();
+    };
+
+    async function init() {
+      try {
+        itemConfig = await (await fetch('../config/item.json')).json();
+      } catch (e) {
+        document.body.innerHTML = `<div style="color:red;padding:20px;">配置加载失败: ${e.message}</div>`;
+        return;
+      }
+      player = new PlayerState({ hp: 100, hpMax: 100, ap: 8, apMax: 8, gold: 0 });
+      itemSystem = new ItemSystem(itemConfig);
+      log('沙盒初始化完成', 'info');
+      updateUI();
+    }
+
+    init();
+  </script>
+</body>
+</html>

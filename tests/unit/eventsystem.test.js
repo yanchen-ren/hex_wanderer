@@ -149,6 +149,7 @@ const testItemConfig = {
     rope_claw: { name: '钩爪', quality: 'rare', effects: [] },
     telescope: { name: '望远镜', quality: 'uncommon', effects: [] },
     tent: { name: '帐篷', quality: 'common', effects: [] },
+    iron_sword: { name: '铁剑', quality: 'uncommon', tags: ['metal'], effects: [] },
   },
 };
 
@@ -397,6 +398,112 @@ describe('EventSystem', () => {
 
     const result2 = sys.triggerEvent({ event: 'chest_01' });
     expect(result2.definition.deathWarning).toBeFalse();
+  });
+
+  // --- New condition types (v1.2 Task 1.3) ---
+
+  it('checkBranchConditions has_metal_item 持有金属道具通过', () => {
+    const itemSystem = new ItemSystem(testItemConfig);
+    itemSystem.addItem('iron_sword');
+    const sys = makeSystem({ itemSystem });
+    const branch = { conditions: [{ type: 'has_metal_item' }] };
+    expect(sys.checkBranchConditions(branch, new PlayerState())).toBeTrue();
+  });
+
+  it('checkBranchConditions has_metal_item 无金属道具不通过', () => {
+    const itemSystem = new ItemSystem(testItemConfig);
+    itemSystem.addItem('tent'); // tent has no metal tag
+    const sys = makeSystem({ itemSystem });
+    const branch = { conditions: [{ type: 'has_metal_item' }] };
+    expect(sys.checkBranchConditions(branch, new PlayerState())).toBeFalse();
+  });
+
+  it('checkBranchConditions has_item_quality 持有指定品质通过', () => {
+    const itemSystem = new ItemSystem(testItemConfig);
+    itemSystem.addItem('rope_claw'); // quality: rare
+    const sys = makeSystem({ itemSystem });
+    const branch = { conditions: [{ type: 'has_item_quality', quality: 'rare' }] };
+    expect(sys.checkBranchConditions(branch, new PlayerState())).toBeTrue();
+  });
+
+  it('checkBranchConditions has_item_quality 无指定品质不通过', () => {
+    const itemSystem = new ItemSystem(testItemConfig);
+    itemSystem.addItem('tent'); // quality: common
+    const sys = makeSystem({ itemSystem });
+    const branch = { conditions: [{ type: 'has_item_quality', quality: 'epic' }] };
+    expect(sys.checkBranchConditions(branch, new PlayerState())).toBeFalse();
+  });
+
+  it('checkBranchConditions on_terrain 地形匹配通过', () => {
+    const player = new PlayerState();
+    player._currentTerrain = 'forest';
+    const sys = makeSystem({ playerState: player });
+    const branch = { conditions: [{ type: 'on_terrain', terrain: 'forest' }] };
+    expect(sys.checkBranchConditions(branch, player)).toBeTrue();
+  });
+
+  it('checkBranchConditions on_terrain 地形不匹配不通过', () => {
+    const player = new PlayerState();
+    player._currentTerrain = 'grass';
+    const sys = makeSystem({ playerState: player });
+    const branch = { conditions: [{ type: 'on_terrain', terrain: 'forest' }] };
+    expect(sys.checkBranchConditions(branch, player)).toBeFalse();
+  });
+
+  it('checkBranchConditions hp_above HP高于阈值通过', () => {
+    const sys = makeSystem();
+    const player = new PlayerState({ hp: 80, hpMax: 100 });
+    const branch = { conditions: [{ type: 'hp_above', value: 50 }] };
+    expect(sys.checkBranchConditions(branch, player)).toBeTrue();
+  });
+
+  it('checkBranchConditions hp_above HP等于阈值不通过', () => {
+    const sys = makeSystem();
+    const player = new PlayerState({ hp: 50, hpMax: 100 });
+    const branch = { conditions: [{ type: 'hp_above', value: 50 }] };
+    expect(sys.checkBranchConditions(branch, player)).toBeFalse();
+  });
+
+  it('checkBranchConditions hp_above HP低于阈值不通过', () => {
+    const sys = makeSystem();
+    const player = new PlayerState({ hp: 30, hpMax: 100 });
+    const branch = { conditions: [{ type: 'hp_above', value: 50 }] };
+    expect(sys.checkBranchConditions(branch, player)).toBeFalse();
+  });
+
+  // --- triggerEvent sets _currentTerrain for on_terrain conditions ---
+  it('triggerEvent 设置 _currentTerrain 用于 on_terrain 条件', () => {
+    const eventConfigWithTerrain = {
+      events: {
+        terrain_test: {
+          type: 'choice',
+          title: '地形测试',
+          description: '测试',
+          choices: [
+            {
+              text: '森林选项',
+              conditions: [{ type: 'on_terrain', terrain: 'forest' }],
+              outcomes: [{ probability: 1.0, result: { type: 'nothing' } }],
+            },
+            {
+              text: '通用选项',
+              conditions: [],
+              outcomes: [{ probability: 1.0, result: { type: 'nothing' } }],
+            },
+          ],
+        },
+      },
+    };
+    const player = new PlayerState();
+    const sys = new EventSystem(eventConfigWithTerrain, testTerrainConfig, testBuildingConfig, player, new EventBus(), { rng: new SeededRandom(42) });
+    
+    // On forest terrain, forest option should be available
+    const result1 = sys.triggerEvent({ event: 'terrain_test', terrain: 'forest' });
+    expect(result1.availableChoices.length).toBe(2);
+
+    // On grass terrain, forest option should NOT be available
+    const result2 = sys.triggerEvent({ event: 'terrain_test', terrain: 'grass' });
+    expect(result2.availableChoices.length).toBe(1);
   });
 });
 

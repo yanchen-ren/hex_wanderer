@@ -44,11 +44,40 @@ export class EventSystem {
     const def = this._events[eventId];
     if (!def) return null;
 
+    // Temporarily set current terrain on playerState for on_terrain condition checks
+    const prevTerrain = this._playerState._currentTerrain;
+    this._playerState._currentTerrain = tileData?.terrain ?? null;
+
     // Filter choices by branch conditions
     const availableChoices = (def.choices ?? []).map((choice, index) => {
       const conditionsMet = this.checkBranchConditions(choice, this._playerState);
       return { ...choice, originalIndex: index, conditionsMet };
     }).filter(c => c.conditionsMet);
+
+    // Restore previous terrain
+    this._playerState._currentTerrain = prevTerrain;
+
+    // Earphone hint: small chance to mark a positive option (Task 8.4)
+    if (this._itemSystem) {
+      const effects = this._itemSystem.getActiveEffects();
+      if (effects.earphoneHintChance > 0 && this._random() < effects.earphoneHintChance) {
+        // Find a choice with positive outcomes and mark it
+        for (const choice of availableChoices) {
+          const outcomes = choice.outcomes ?? [];
+          const hasPositive = outcomes.some(o => {
+            const r = o.result;
+            return r && (r.type === 'item_reward' || r.type === 'relic_fragment' ||
+              (r.type === 'hp_change' && (r.value ?? 0) > 0) ||
+              (r.type === 'gold_change' && (r.value ?? 0) > 0) ||
+              r.type === 'nothing');
+          });
+          if (hasPositive && !choice.text.includes('🎧')) {
+            choice.text = choice.text + ' 🎧';
+            break;
+          }
+        }
+      }
+    }
 
     return {
       eventId,
@@ -115,6 +144,41 @@ export class EventSystem {
         }
         case 'hp_below': {
           if (playerState.hp >= cond.value) return false;
+          break;
+        }
+        case 'gold_cost': {
+          if ((playerState.gold ?? 0) < (cond.value ?? 0)) return false;
+          break;
+        }
+        case 'has_metal_item': {
+          // Check if player has any item tagged as "metal" in item config
+          if (!this._itemSystem) return false;
+          const inventory = this._itemSystem.getInventory();
+          const itemDefs = this._itemSystem._itemDefs ?? {};
+          const hasMetal = inventory.some(item => {
+            const def = itemDefs[item.itemId];
+            return def?.tags?.includes('metal');
+          });
+          if (!hasMetal) return false;
+          break;
+        }
+        case 'has_item_quality': {
+          // Check if player has any item of specified quality
+          if (!this._itemSystem) return false;
+          const inv = this._itemSystem.getInventory();
+          const hasQuality = inv.some(item => item.quality === cond.quality);
+          if (!hasQuality) return false;
+          break;
+        }
+        case 'on_terrain': {
+          // Check current tile terrain — uses tileData passed via playerState._currentTerrain
+          // or via the branch's _tileData context
+          const currentTerrain = playerState._currentTerrain ?? null;
+          if (!currentTerrain || currentTerrain !== cond.terrain) return false;
+          break;
+        }
+        case 'hp_above': {
+          if (playerState.hp <= (cond.value ?? 0)) return false;
           break;
         }
         default:

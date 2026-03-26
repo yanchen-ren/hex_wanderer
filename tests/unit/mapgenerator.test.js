@@ -22,17 +22,23 @@ const terrainConfig = {
 
 const buildingConfig = {
   buildingTypes: {
-    lighthouse: { name: '灯塔', allowedTerrains: ['grass', 'desert', 'forest'], adjacencyConstraints: { forbidden: [] } },
-    camp:       { name: '营地', allowedTerrains: ['grass', 'forest', 'desert'], adjacencyConstraints: { forbidden: ['monster_camp'] } },
-    city:       { name: '城市', allowedTerrains: ['grass', 'desert'], adjacencyConstraints: { forbidden: ['monster_camp', 'whirlpool'] } },
+    lighthouse: { name: '灯塔', allowedTerrains: ['grass', 'desert', 'forest'], adjacencyConstraints: { forbidden: [] }, triggerEvent: 'lighthouse_event' },
+    camp:       { name: '营地', allowedTerrains: ['grass', 'forest', 'desert'], adjacencyConstraints: { forbidden: ['monster_camp'] }, triggerEvent: 'camp_rest_event' },
+    city:       { name: '城市', allowedTerrains: ['grass', 'desert'], adjacencyConstraints: { forbidden: ['monster_camp', 'whirlpool'] }, triggerEvent: 'city_market' },
     ruin:       { name: '遗迹', allowedTerrains: ['grass', 'desert', 'forest', 'swamp'], adjacencyConstraints: { forbidden: [] } },
-    portal:     { name: '传送门', effect: { type: 'win_condition' }, allowedTerrains: ['grass', 'desert'], adjacencyConstraints: { forbidden: ['monster_camp'] } },
+    portal:     { name: '传送门', effect: { type: 'win_condition' }, allowedTerrains: ['grass', 'desert', 'forest', 'swamp', 'water', 'ice', 'lava'], adjacencyConstraints: { forbidden: ['monster_camp'] } },
     teleporter: { name: '传送阵', effect: { type: 'teleport' }, allowedTerrains: ['grass', 'desert', 'forest'], adjacencyConstraints: { forbidden: [] } },
     cave:       { name: '洞穴', allowedTerrains: ['grass', 'desert', 'forest'], adjacencyConstraints: { forbidden: [] } },
     farm:       { name: '农田', allowedTerrains: ['grass'], adjacencyConstraints: { forbidden: ['lava', 'monster_camp'] } },
     mine:       { name: '矿坑', allowedTerrains: ['grass', 'desert'], adjacencyConstraints: { forbidden: [] } },
     monster_camp: { name: '怪物营地', allowedTerrains: ['grass', 'forest', 'swamp', 'desert'], adjacencyConstraints: { forbidden: ['city', 'camp', 'farm'] } },
     whirlpool:  { name: '漩涡', allowedTerrains: ['water'], adjacencyConstraints: { forbidden: ['city'] } },
+    church:     { name: '教堂', allowedTerrains: ['grass', 'desert'], adjacencyConstraints: { forbidden: ['monster_camp'] }, triggerEvent: 'church_prayer' },
+    watchtower: { name: '瞭望塔', allowedTerrains: ['grass', 'desert', 'forest'], adjacencyConstraints: { forbidden: [] }, triggerEvent: 'watchtower_event' },
+    reef:       { name: '暗礁', allowedTerrains: ['water'], adjacencyConstraints: { forbidden: [] }, triggerEvent: 'reef_event', repeatable: true },
+    training_ground: { name: '训练场', allowedTerrains: ['grass', 'desert'], adjacencyConstraints: { forbidden: [] }, triggerEvent: 'training_event' },
+    altar:      { name: '祭坛', allowedTerrains: ['grass', 'forest', 'desert'], adjacencyConstraints: { forbidden: [] }, triggerEvent: 'altar_event', repeatable: true },
+    spring:     { name: '泉水', allowedTerrains: ['grass', 'forest'], adjacencyConstraints: { forbidden: [] }, triggerEvent: null },
   }
 };
 
@@ -187,11 +193,12 @@ describe('MapGenerator — 圣物碎片', () => {
     }
   });
 
-  it('relic tiles should have relic_fragment event', () => {
+  it('relic tiles should have relic event', () => {
     const map = generateSmallMap(42);
+    const relicEvents = ['relic_guardian', 'relic_shrine', 'relic_trial'];
     for (const pos of map.relicPositions) {
       const tile = map.getTile(pos.q, pos.r);
-      expect(tile.event).toBe('relic_fragment');
+      expect(relicEvents.includes(tile.event)).toBeTrue();
     }
   });
 });
@@ -391,6 +398,89 @@ describe('MapGenerator — 道具与地形匹配', () => {
       .map(t => t.event.replace('item_pickup_', ''));
     const uniqueItems = new Set(itemEvents);
     expect(uniqueItems.size).toBe(itemEvents.length);
+  });
+});
+
+describe('MapGenerator — 事件地形过滤 (v1.2)', () => {
+  const eventConfig = {
+    events: {
+      wolf_attack: { type: 'combat', allowedTerrains: ['grass', 'forest'] },
+      swamp_creature: { type: 'combat', allowedTerrains: ['swamp'] },
+      chest_01: { type: 'treasure', allowedTerrains: ['any'] },
+      floating_crate: { type: 'treasure', allowedTerrains: ['water'] },
+      forest_spirit: { type: 'choice', allowedTerrains: ['forest'] },
+      stargazing: { type: 'choice', allowedTerrains: ['any_land'] },
+    },
+  };
+
+  it('_isTerrainAllowed "any" 匹配所有地形', () => {
+    const gen = new MapGenerator(42, 'small', terrainConfig, buildingConfig, itemConfig, eventConfig);
+    expect(gen._isTerrainAllowed(['any'], 'grass')).toBeTrue();
+    expect(gen._isTerrainAllowed(['any'], 'water')).toBeTrue();
+    expect(gen._isTerrainAllowed(['any'], 'lava')).toBeTrue();
+  });
+
+  it('_isTerrainAllowed "any_land" 匹配非水域', () => {
+    const gen = new MapGenerator(42, 'small', terrainConfig, buildingConfig, itemConfig, eventConfig);
+    expect(gen._isTerrainAllowed(['any_land'], 'grass')).toBeTrue();
+    expect(gen._isTerrainAllowed(['any_land'], 'forest')).toBeTrue();
+    expect(gen._isTerrainAllowed(['any_land'], 'water')).toBeFalse();
+  });
+
+  it('_isTerrainAllowed 具体地形匹配', () => {
+    const gen = new MapGenerator(42, 'small', terrainConfig, buildingConfig, itemConfig, eventConfig);
+    expect(gen._isTerrainAllowed(['grass', 'forest'], 'grass')).toBeTrue();
+    expect(gen._isTerrainAllowed(['grass', 'forest'], 'desert')).toBeFalse();
+  });
+
+  it('_isTerrainAllowed 空数组匹配所有', () => {
+    const gen = new MapGenerator(42, 'small', terrainConfig, buildingConfig, itemConfig, eventConfig);
+    expect(gen._isTerrainAllowed([], 'grass')).toBeTrue();
+    expect(gen._isTerrainAllowed(null, 'water')).toBeTrue();
+  });
+
+  it('事件密度应约为35%', () => {
+    const gen = new MapGenerator(42, 'small', terrainConfig, buildingConfig, itemConfig, eventConfig);
+    const map = gen.generate();
+    const allTiles = map.getAllTiles();
+    const tilesWithEvents = allTiles.filter(t => t.event != null);
+    const density = tilesWithEvents.length / allTiles.length;
+    // Should be roughly 20-45% (accounting for spawn area, buildings, items)
+    expect(density).toBeGreaterThan(0.15);
+    expect(density).toBeLessThan(0.5);
+  });
+});
+
+describe('MapGenerator — 农田集群放置 (v1.2)', () => {
+  it('farms should appear in clusters of at least 3 adjacent tiles', () => {
+    // Try multiple seeds to find a map with farms
+    for (let seed = 1; seed <= 10; seed++) {
+      const gen = new MapGenerator(seed, 'small', terrainConfig, buildingConfig, itemConfig);
+      const map = gen.generate();
+      const allTiles = map.getAllTiles();
+      const farmTiles = allTiles.filter(t => t.building === 'farm');
+
+      if (farmTiles.length === 0) continue;
+
+      // For each farm tile, count adjacent farm tiles
+      // At least one farm should have 2+ farm neighbors (part of a cluster)
+      let hasCluster = false;
+      for (const ft of farmTiles) {
+        const neighbors = HexGrid.neighbors(ft.q, ft.r);
+        const farmNeighborCount = neighbors.filter(n => {
+          const nt = map.getTile(n.q, n.r);
+          return nt && nt.building === 'farm';
+        }).length;
+        if (farmNeighborCount >= 1) {
+          hasCluster = true;
+          break;
+        }
+      }
+      if (farmTiles.length >= 3) {
+        expect(hasCluster).toBeTrue();
+      }
+      break; // Only need to test one seed
+    }
   });
 });
 

@@ -12,16 +12,18 @@ export class PlayerState {
    * @param {number} [options.apMax]
    * @param {number} [options.turnNumber]
    * @param {number} [options.relicsCollected]
+   * @param {number} [options.gold]
    * @param {Array} [options.statusEffects]
    */
   constructor(options = {}) {
     this.position = options.position ?? { q: 0, r: 0 };
     this.hpMax = options.hpMax ?? 100;
     this.hp = this._clampHP(options.hp ?? this.hpMax);
-    this.apMax = options.apMax ?? 5;
+    this.apMax = options.apMax ?? 8;
     this.ap = options.ap ?? this.apMax;
     this.turnNumber = options.turnNumber ?? 1;
     this.relicsCollected = options.relicsCollected ?? 0;
+    this.gold = options.gold ?? 0;
     // Each status effect: { id: string, duration: number, effect: object }
     this.statusEffects = options.statusEffects
       ? options.statusEffects.map(e => ({ ...e }))
@@ -67,11 +69,78 @@ export class PlayerState {
   }
 
   /**
-   * Add a status effect.
-   * @param {{ id: string, duration: number, effect: object }} effect
+   * Debuff definitions with default effects.
+   * @type {Object<string, {defaultDuration: number, effect: object}>}
+   */
+  static DEBUFF_DEFS = {
+    poison: { defaultDuration: 3, effect: { hpLossPercent: 0.05 } },
+    frostbite: { defaultDuration: 2, effect: { apCostModifier: 1, hpLossPerTurn: 3 } },
+    curse: { defaultDuration: 5, effect: { combatDamageMultiplier: 2 } },
+    bleed: { defaultDuration: 1, effect: { moveHpLoss: 5 } },
+  };
+
+  /**
+   * Add a status effect. If the effect id matches a known debuff, merge default effect values.
+   * @param {{ id: string, duration: number, effect?: object }} effect
    */
   addStatusEffect(effect) {
-    this.statusEffects.push({ ...effect });
+    // Dedup: if same status already exists, refresh duration instead of stacking
+    const existing = this.statusEffects.find(se => se.id === effect.id);
+    if (existing) {
+      const debufDef = PlayerState.DEBUFF_DEFS[effect.id];
+      const newDuration = effect.duration ?? debufDef?.defaultDuration ?? 3;
+      existing.duration = Math.max(existing.duration, newDuration);
+      return;
+    }
+
+    const debufDef = PlayerState.DEBUFF_DEFS[effect.id];
+    const merged = { ...effect };
+    if (debufDef) {
+      merged.duration = effect.duration ?? debufDef.defaultDuration;
+      merged.effect = { ...debufDef.effect, ...(effect.effect ?? {}) };
+    } else {
+      merged.effect = effect.effect ?? {};
+    }
+    this.statusEffects.push({ ...merged });
+  }
+
+  /**
+   * Check if the player has a specific status effect.
+   * @param {string} statusId
+   * @returns {boolean}
+   */
+  hasStatusEffect(statusId) {
+    return this.statusEffects.some(se => se.id === statusId);
+  }
+
+  /**
+   * Get a specific status effect by id.
+   * @param {string} statusId
+   * @returns {object|null}
+   */
+  getStatusEffect(statusId) {
+    return this.statusEffects.find(se => se.id === statusId) ?? null;
+  }
+
+  /**
+   * Remove a specific status effect by id.
+   * @param {string} statusId
+   * @returns {boolean} true if removed
+   */
+  removeStatusEffect(statusId) {
+    const idx = this.statusEffects.findIndex(se => se.id === statusId);
+    if (idx >= 0) {
+      this.statusEffects.splice(idx, 1);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Remove all debuff status effects.
+   */
+  clearAllDebuffs() {
+    this.statusEffects = this.statusEffects.filter(se => !PlayerState.DEBUFF_DEFS[se.id]);
   }
 
   /**
@@ -104,6 +173,7 @@ export class PlayerState {
       apMax: this.apMax,
       turnNumber: this.turnNumber,
       relicsCollected: this.relicsCollected,
+      gold: this.gold,
       statusEffects: this.statusEffects.map(e => ({ ...e, effect: { ...e.effect } })),
     };
   }
@@ -122,6 +192,7 @@ export class PlayerState {
       apMax: data.apMax,
       turnNumber: data.turnNumber,
       relicsCollected: data.relicsCollected,
+      gold: data.gold,
       statusEffects: data.statusEffects,
     });
   }

@@ -104,6 +104,14 @@ export class MovementSystem {
       cost += extra;
     }
 
+    // Frostbite: all AP costs +1
+    if (this._playerState.hasStatusEffect && this._playerState.hasStatusEffect('frostbite')) {
+      const frostbite = this._playerState.getStatusEffect('frostbite');
+      if (frostbite?.effect?.apCostModifier) {
+        cost += frostbite.effect.apCostModifier;
+      }
+    }
+
     return cost;
   }
 
@@ -223,9 +231,9 @@ export class MovementSystem {
     // Deduct AP
     this._playerState.ap -= apCost;
 
-    // Fall damage calculation (downhill without parachute)
-    let damage = 0;
-    let damageType = null;
+    // Fall damage calculation (downhill) — returned as pending, NOT applied here
+    let pendingFallDamage = 0;
+    let fallDamageEvent = false;
 
     if (delta < 0) {
       const effects = this._itemSystem.getActiveEffects();
@@ -237,23 +245,27 @@ export class MovementSystem {
         if (delta >= -2 && delta <= -1) {
           // Δe -1 to -2: 10% chance of 10 HP
           if (roll < 0.1) {
-            damage = 10;
-            damageType = 'fall';
+            pendingFallDamage = 10;
+            fallDamageEvent = true;
           }
         } else if (delta === -3) {
           // Δe -3: 40% chance of 30 HP
           if (roll < 0.4) {
-            damage = 30;
-            damageType = 'fall';
+            pendingFallDamage = 30;
+            fallDamageEvent = true;
           }
         }
         // Δe ≤ -4 with parachute: no damage (already checked in canMoveTo)
       }
     }
 
-    // Apply fall damage
-    if (damage > 0) {
-      this._playerState.applyDamage(damage, 'fall');
+    // Apply bleed damage on move
+    let bleedDamage = 0;
+    if (this._playerState.hasStatusEffect && this._playerState.hasStatusEffect('bleed')) {
+      const bleed = this._playerState.getStatusEffect('bleed');
+      const bleedLoss = bleed?.effect?.moveHpLoss ?? 5;
+      const { actualDamage } = this._playerState.applyDamage(bleedLoss, 'bleed');
+      bleedDamage = actualDamage;
     }
 
     // Update player position
@@ -262,9 +274,14 @@ export class MovementSystem {
     }
 
     const result = { success: true, apCost };
-    if (damage > 0) {
-      result.damage = damage;
-      result.damageType = damageType;
+    if (fallDamageEvent) {
+      result.pendingFallDamage = pendingFallDamage;
+      result.fallDamageEvent = true;
+      // Keep legacy damage field for backward compat (set to 0 since not applied yet)
+      result.damage = 0;
+    }
+    if (bleedDamage > 0) {
+      result.bleedDamage = bleedDamage;
     }
     return result;
   }

@@ -7,27 +7,28 @@ import { EventBus } from '../../src/core/EventBus.js';
 import { PlayerState } from '../../src/systems/PlayerState.js';
 import { MapData } from '../../src/map/MapData.js';
 
-// Minimal building config for testing
+// Minimal building config for testing (v1.2 updated)
 const buildingConfig = {
   buildingTypes: {
     lighthouse: {
       name: '灯塔',
-      description: '增加周围地块视野',
-      effect: { visionBonus: 3, areaRadius: 3 },
+      description: '点亮后永久揭开周围迷雾',
+      effect: { type: 'trigger_event' },
       allowedTerrains: ['grass', 'desert', 'forest'],
-      triggerEvent: null,
+      triggerEvent: 'lighthouse_event',
     },
     camp: {
       name: '营地',
-      description: '休息时额外恢复',
-      effect: { restApBonus: 2, restHpBonus: 10 },
+      description: '可以休息、治疗或交易',
+      effect: { type: 'trigger_event' },
       allowedTerrains: ['grass', 'forest', 'desert'],
-      triggerEvent: null,
+      triggerEvent: 'camp_rest_event',
     },
     portal: {
       name: '传送门',
       description: '通关出口',
       effect: { type: 'win_condition' },
+      allowedTerrains: ['grass', 'desert', 'forest', 'swamp', 'water', 'ice', 'lava'],
       triggerEvent: null,
     },
     teleporter: {
@@ -48,25 +49,77 @@ const buildingConfig = {
       effect: { type: 'trigger_event', eventRefreshBonus: 0.05, eventRefreshRadius: 2 },
       triggerEvent: 'monster_camp_battle',
     },
+    church: {
+      name: '教堂',
+      description: '祈祷解除诅咒和流血',
+      effect: { type: 'trigger_event' },
+      triggerEvent: 'church_prayer',
+    },
+    farm: {
+      name: '农田',
+      description: '持有镰刀时休息可恢复生命',
+      effect: { restHpBonus: 0, restApBonus: 0 },
+      triggerEvent: null,
+    },
+    city: {
+      name: '城市',
+      description: '交易道具和获取情报',
+      effect: { restHpBonus: 15, restApBonus: 1, refreshSuppression: true },
+      triggerEvent: 'city_market',
+    },
+    watchtower: {
+      name: '瞭望塔',
+      description: '登上后可揭开周围迷雾',
+      effect: { type: 'trigger_event' },
+      triggerEvent: 'watchtower_event',
+    },
+    reef: {
+      name: '暗礁',
+      description: '水域中的危险暗礁',
+      effect: { type: 'trigger_event' },
+      triggerEvent: 'reef_event',
+      repeatable: true,
+    },
+    training_ground: {
+      name: '训练场',
+      description: '永久提升HP或AP上限',
+      effect: { type: 'trigger_event' },
+      triggerEvent: 'training_event',
+    },
+    altar: {
+      name: '祭坛',
+      description: '献祭HP换道具或供奉道具换金币',
+      effect: { type: 'trigger_event' },
+      triggerEvent: 'altar_event',
+      repeatable: true,
+    },
+    spring: {
+      name: '泉水',
+      description: '经过时自动恢复行动力',
+      effect: { type: 'passive_ap_restore', apMin: 2, apMax: 5, fullRestoreChance: 0.05 },
+      triggerEvent: null,
+    },
   },
 };
 
 describe('BuildingSystem', () => {
   // --- triggerBuildingEffect ---
 
-  it('营地返回 rest_bonus 效果', () => {
+  it('营地返回 trigger_event 并携带 camp_rest_event', () => {
     const bus = new EventBus();
     const sys = new BuildingSystem(buildingConfig, bus);
     const player = new PlayerState();
+    let eventData = null;
+    bus.on('building:event', (data) => { eventData = data; });
 
     const result = sys.triggerBuildingEffect(
       { buildingId: 'camp', position: { q: 0, r: 0 } },
       player
     );
 
-    expect(result.type).toBe('rest_bonus');
-    expect(result.effect.restApBonus).toBe(2);
-    expect(result.effect.restHpBonus).toBe(10);
+    expect(result.type).toBe('trigger_event');
+    expect(result.eventId).toBe('camp_rest_event');
+    expect(eventData.eventId).toBe('camp_rest_event');
   });
 
   it('传送门返回 win_condition', () => {
@@ -102,19 +155,21 @@ describe('BuildingSystem', () => {
     expect(eventData.eventId).toBe('ruin_explore');
   });
 
-  it('灯塔返回 vision_bonus 效果', () => {
+  it('灯塔返回 trigger_event 并携带 lighthouse_event', () => {
     const bus = new EventBus();
     const sys = new BuildingSystem(buildingConfig, bus);
     const player = new PlayerState();
+    let eventData = null;
+    bus.on('building:event', (data) => { eventData = data; });
 
     const result = sys.triggerBuildingEffect(
       { buildingId: 'lighthouse', position: { q: 0, r: 0 } },
       player
     );
 
-    expect(result.type).toBe('vision_bonus');
-    expect(result.effect.visionBonus).toBe(3);
-    expect(result.effect.areaRadius).toBe(3);
+    expect(result.type).toBe('trigger_event');
+    expect(result.eventId).toBe('lighthouse_event');
+    expect(eventData.eventId).toBe('lighthouse_event');
   });
 
   it('未知建筑返回 unknown', () => {
@@ -227,7 +282,7 @@ describe('BuildingSystem', () => {
 
   // --- getAreaEffect ---
 
-  it('灯塔区域效果包含正确的地块数', () => {
+  it('灯塔区域效果（trigger_event 无 areaRadius 默认 0）', () => {
     const bus = new EventBus();
     const sys = new BuildingSystem(buildingConfig, bus);
 
@@ -235,23 +290,8 @@ describe('BuildingSystem', () => {
       { buildingId: 'lighthouse', position: { q: 5, r: 5 } }
     );
 
-    // areaRadius = 3 → hexesInRange(5,5,3) = 1+6+12+18 = 37 tiles
-    expect(area.affectedTiles.length).toBe(37);
-    expect(area.effect.visionBonus).toBe(3);
-  });
-
-  it('营地区域效果（无 areaRadius 默认 0）', () => {
-    const bus = new EventBus();
-    const sys = new BuildingSystem(buildingConfig, bus);
-
-    const area = sys.getAreaEffect(
-      { buildingId: 'camp', position: { q: 0, r: 0 } }
-    );
-
-    // areaRadius = 0 → only the building tile itself
+    // areaRadius = 0 (trigger_event type) → only the building tile itself
     expect(area.affectedTiles.length).toBe(1);
-    expect(area.effect.restApBonus).toBe(2);
-    expect(area.effect.restHpBonus).toBe(10);
   });
 
   it('getAreaEffect 可覆盖 radius', () => {
@@ -267,7 +307,7 @@ describe('BuildingSystem', () => {
     expect(area.affectedTiles.length).toBe(7);
   });
 
-  // ---怪物营地 trigger_event ---
+  // --- 怪物营地 trigger_event ---
 
   it('怪物营地触发事件', () => {
     const bus = new EventBus();
@@ -281,5 +321,162 @@ describe('BuildingSystem', () => {
 
     expect(result.type).toBe('trigger_event');
     expect(result.eventId).toBe('monster_camp_battle');
+  });
+
+  // --- Church (now trigger_event with church_prayer) ---
+
+  it('教堂返回 trigger_event 并携带 church_prayer', () => {
+    const bus = new EventBus();
+    const sys = new BuildingSystem(buildingConfig, bus);
+    const player = new PlayerState();
+    let eventData = null;
+    bus.on('building:event', (data) => { eventData = data; });
+
+    const result = sys.triggerBuildingEffect(
+      { buildingId: 'church', position: { q: 4, r: 4 } },
+      player
+    );
+
+    expect(result.type).toBe('trigger_event');
+    expect(result.eventId).toBe('church_prayer');
+    expect(eventData.eventId).toBe('church_prayer');
+  });
+
+  // --- Farm (restHpBonus: 0, restApBonus: 0) ---
+
+  it('农田返回 passive 效果（无休息加成）', () => {
+    const bus = new EventBus();
+    const sys = new BuildingSystem(buildingConfig, bus);
+    const player = new PlayerState();
+
+    const result = sys.triggerBuildingEffect(
+      { buildingId: 'farm', position: { q: 2, r: 2 } },
+      player
+    );
+
+    // restHpBonus: 0, restApBonus: 0 → falls through to passive
+    expect(result.type).toBe('passive');
+  });
+
+  // --- City (trigger_event with city_market) ---
+
+  it('城市返回 trigger_event 并携带 city_market', () => {
+    const bus = new EventBus();
+    const sys = new BuildingSystem(buildingConfig, bus);
+    const player = new PlayerState();
+    let eventData = null;
+    bus.on('building:event', (data) => { eventData = data; });
+
+    const result = sys.triggerBuildingEffect(
+      { buildingId: 'city', position: { q: 5, r: 5 } },
+      player
+    );
+
+    expect(result.type).toBe('trigger_event');
+    expect(result.eventId).toBe('city_market');
+    expect(eventData.eventId).toBe('city_market');
+  });
+
+  // --- v1.2 New Buildings ---
+
+  it('瞭望塔返回 trigger_event 并携带 watchtower_event', () => {
+    const bus = new EventBus();
+    const sys = new BuildingSystem(buildingConfig, bus);
+    const player = new PlayerState();
+    let eventData = null;
+    bus.on('building:event', (data) => { eventData = data; });
+
+    const result = sys.triggerBuildingEffect(
+      { buildingId: 'watchtower', position: { q: 1, r: 1 } },
+      player
+    );
+
+    expect(result.type).toBe('trigger_event');
+    expect(result.eventId).toBe('watchtower_event');
+    expect(eventData.eventId).toBe('watchtower_event');
+  });
+
+  it('暗礁返回 trigger_event 并携带 reef_event', () => {
+    const bus = new EventBus();
+    const sys = new BuildingSystem(buildingConfig, bus);
+    const player = new PlayerState();
+    let eventData = null;
+    bus.on('building:event', (data) => { eventData = data; });
+
+    const result = sys.triggerBuildingEffect(
+      { buildingId: 'reef', position: { q: 2, r: 2 } },
+      player
+    );
+
+    expect(result.type).toBe('trigger_event');
+    expect(result.eventId).toBe('reef_event');
+    expect(eventData.eventId).toBe('reef_event');
+  });
+
+  it('暗礁标记为可重复', () => {
+    const bus = new EventBus();
+    const sys = new BuildingSystem(buildingConfig, bus);
+    const def = sys.getBuildingDef('reef');
+    expect(def.repeatable).toBeTrue();
+  });
+
+  it('训练场返回 trigger_event 并携带 training_event', () => {
+    const bus = new EventBus();
+    const sys = new BuildingSystem(buildingConfig, bus);
+    const player = new PlayerState();
+
+    const result = sys.triggerBuildingEffect(
+      { buildingId: 'training_ground', position: { q: 3, r: 3 } },
+      player
+    );
+
+    expect(result.type).toBe('trigger_event');
+    expect(result.eventId).toBe('training_event');
+  });
+
+  it('祭坛返回 trigger_event 并携带 altar_event', () => {
+    const bus = new EventBus();
+    const sys = new BuildingSystem(buildingConfig, bus);
+    const player = new PlayerState();
+
+    const result = sys.triggerBuildingEffect(
+      { buildingId: 'altar', position: { q: 4, r: 4 } },
+      player
+    );
+
+    expect(result.type).toBe('trigger_event');
+    expect(result.eventId).toBe('altar_event');
+  });
+
+  it('祭坛标记为可重复', () => {
+    const bus = new EventBus();
+    const sys = new BuildingSystem(buildingConfig, bus);
+    const def = sys.getBuildingDef('altar');
+    expect(def.repeatable).toBeTrue();
+  });
+
+  it('泉水返回 passive_ap_restore 并恢复AP', () => {
+    const bus = new EventBus();
+    const sys = new BuildingSystem(buildingConfig, bus);
+    const player = new PlayerState();
+    player.ap = 3;
+    player.apMax = 8;
+
+    const result = sys.triggerBuildingEffect(
+      { buildingId: 'spring', position: { q: 5, r: 5 } },
+      player
+    );
+
+    expect(result.type).toBe('passive_ap_restore');
+    expect(result.apRestore).toBeGreaterThanOrEqual(0);
+    expect(typeof result.message).toBe('string');
+  });
+
+  it('泉水无 triggerEvent', () => {
+    const bus = new EventBus();
+    const sys = new BuildingSystem(buildingConfig, bus);
+    const def = sys.getBuildingDef('spring');
+    expect(def.triggerEvent).toBeNull();
+    expect(def.effect.type).toBe('passive_ap_restore');
   });
 });

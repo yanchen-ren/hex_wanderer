@@ -9,6 +9,8 @@ export class ItemSystem {
   constructor(itemConfig) {
     /** @type {object} item definitions keyed by itemId */
     this._itemDefs = itemConfig?.items ?? {};
+    /** @type {Array<{materialA: string, materialB: string, result: string}>} combination recipes */
+    this._combinations = itemConfig?.combinations ?? [];
     /** @type {Map<string, { enabled: boolean }>} player inventory */
     this._inventory = new Map();
   }
@@ -75,6 +77,51 @@ export class ItemSystem {
   }
 
   /**
+   * Remove an item from the player's inventory (consume it).
+   * Returns true if item was owned and removed, false otherwise.
+   * @param {string} itemId
+   * @returns {boolean}
+   */
+  consumeItem(itemId) {
+    if (!this._inventory.has(itemId)) return false;
+    this._inventory.delete(itemId);
+    return true;
+  }
+
+  /**
+   * Check if an item is consumable (reads "consumable" field from config).
+   * @param {string} itemId
+   * @returns {boolean}
+   */
+  isConsumable(itemId) {
+    const def = this._itemDefs[itemId];
+    return def?.consumable === true;
+  }
+
+  /**
+   * Check all combination recipes. If both materials are present,
+   * remove both and add the result item.
+   * @returns {{ combined: boolean, result?: string, consumed?: [string, string] }}
+   */
+  checkCombinations() {
+    const combinations = this._combinations ?? [];
+    for (const recipe of combinations) {
+      const { materialA, materialB, result } = recipe;
+      if (this._inventory.has(materialA) && this._inventory.has(materialB)) {
+        // Remove both materials
+        this._inventory.delete(materialA);
+        this._inventory.delete(materialB);
+        // Add result item (must be defined in config)
+        if (this._itemDefs[result]) {
+          this._inventory.set(result, { enabled: true });
+        }
+        return { combined: true, result, consumed: [materialA, materialB] };
+      }
+    }
+    return { combined: false };
+  }
+
+  /**
    * Get aggregated effects from all enabled items.
    * @returns {{ terrainPass: Array, apBonus: number, visionBonus: number, restHpBonus: number, fallImmunity: boolean, statusImmunities: string[] }}
    */
@@ -86,6 +133,13 @@ export class ItemSystem {
       restHpBonus: 0,
       fallImmunity: false,
       statusImmunities: [],
+      combatDamageReduction: 0,
+      curseImmunity: false,
+      overnightSafety: 0,
+      apCostModifiers: [],
+      combatBonuses: [],
+      goldBonuses: [],
+      eventOptionUnlocks: [],
     };
 
     for (const [itemId, entry] of this._inventory) {
@@ -119,6 +173,85 @@ export class ItemSystem {
           case 'damage_immunity_chance':
             // Store formula for later evaluation by combat/damage system
             result.damageImmunityFormula = eff.formula;
+            break;
+          case 'combat_damage_reduction':
+            result.combatDamageReduction += eff.value ?? 0;
+            break;
+          case 'ap_cost_modifier':
+            result.apCostModifiers.push(eff);
+            break;
+          case 'curse_immunity':
+            result.curseImmunity = true;
+            break;
+          case 'overnight_safety':
+            result.overnightSafety += eff.encounterReduction ?? 0;
+            break;
+          case 'combat_bonus':
+            result.combatBonuses.push({ ...eff, itemId });
+            break;
+          case 'gold_bonus':
+            result.goldBonuses.push(eff);
+            break;
+          case 'event_option_unlock':
+            result.eventOptionUnlocks.push(eff.optionTag);
+            break;
+          case 'escape_guarantee':
+            result.escapeGuarantee = true;
+            break;
+          case 'escape_bonus':
+            result.escapeBonus = (result.escapeBonus ?? 0) + (eff.value ?? 0);
+            break;
+          case 'overnight_party':
+            result.overnightParty = eff;
+            break;
+          case 'earphone_hint':
+            result.earphoneHintChance = eff.chance ?? 0;
+            break;
+          case 'lethal_save':
+            if (!result.lethalSaves) result.lethalSaves = [];
+            result.lethalSaves.push(eff);
+            break;
+          case 'hourglass_retry':
+            result.hourglassRetry = true;
+            break;
+          case 'mystery_egg_timer':
+            result.mysteryEggTimer = eff.turns ?? 5;
+            break;
+          case 'sell_in_city':
+            // Passive — handled by city event logic
+            break;
+          case 'scare_chance':
+            result.scareChance = (result.scareChance ?? 0) + (eff.value ?? 0);
+            break;
+          case 'luck_modifier':
+            result.luckModifier = (result.luckModifier ?? 0) + (eff.value ?? 0);
+            break;
+          case 'reveal_portal':
+            result.revealPortal = true;
+            break;
+          case 'reveal_relics':
+            result.revealRelics = true;
+            break;
+          case 'npc_friendly':
+            result.npcFriendly = true;
+            break;
+          case 'combat_no_damage_on_win':
+            result.combatNoDamageOnWin = true;
+            break;
+          case 'combat_surrender_chance':
+            result.combatSurrenderChance = eff.value ?? 0;
+            break;
+          case 'ruin_loot_upgrade':
+            result.ruinLootUpgrade = eff.minQuality ?? 'rare';
+            break;
+          case 'cold_area_immunity':
+            result.coldAreaImmunityRadius = eff.radius ?? 0;
+            break;
+          case 'status_cleanse_on_turn_end':
+            result.statusCleanseOnTurnEnd = true;
+            break;
+          case 'trap_immunity':
+            result.trapImmunity = true;
             break;
         }
       }

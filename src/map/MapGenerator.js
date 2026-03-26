@@ -37,7 +37,15 @@ export class MapGenerator {
    * @param {object} buildingConfig - parsed building.json
    * @param {object} itemConfig - parsed item.json
    */
-  constructor(seed, size, terrainConfig, buildingConfig, itemConfig) {
+  /**
+   * @param {number} seed
+   * @param {string} size - 'small' | 'medium' | 'large'
+   * @param {object} terrainConfig - parsed terrain.json
+   * @param {object} buildingConfig - parsed building.json
+   * @param {object} itemConfig - parsed item.json
+   * @param {object} [eventConfig] - parsed event.json (optional, for terrain-aware event placement)
+   */
+  constructor(seed, size, terrainConfig, buildingConfig, itemConfig, eventConfig) {
     this.seed = seed;
     this.sizeKey = size;
     const preset = SIZE_PRESETS[size] || SIZE_PRESETS.medium;
@@ -46,6 +54,7 @@ export class MapGenerator {
     this.terrainConfig = terrainConfig;
     this.buildingConfig = buildingConfig;
     this.itemConfig = itemConfig;
+    this.eventConfig = eventConfig ?? null;
     this.rng = new SeededRandom(seed);
     this.noise = new SimplexNoise(seed);
     this.noise2 = new SimplexNoise(seed + 1000);
@@ -324,8 +333,33 @@ export class MapGenerator {
     // Place teleporter pair
     this._placeTeleporterPair(map, buildingTypes.teleporter);
 
-    // Place other buildings
-    const otherBuildings = ['lighthouse', 'camp', 'city', 'ruin', 'cave', 'farm', 'mine', 'monster_camp'];
+    // Place farm clusters (at least 3 adjacent farms each)
+    if (buildingTypes.farm) {
+      const farmClusterCount = Math.max(2, Math.floor((this.width * this.height) / 400));
+      for (let i = 0; i < farmClusterCount; i++) {
+        this._placeFarmCluster(map, buildingTypes.farm);
+      }
+    }
+
+    // Place hollow trees in forest areas (3-5 single tiles)
+    if (buildingTypes.hollow_tree) {
+      const hollowTreeCount = 3 + this.rng.nextInt(0, 2); // 3-5
+      for (let i = 0; i < hollowTreeCount; i++) {
+        this._placeBuilding(map, 'hollow_tree', buildingTypes.hollow_tree);
+      }
+    }
+
+    // Place villages with adjacent farms
+    if (buildingTypes.village) {
+      const villageCount = Math.max(2, Math.floor((this.width * this.height) / 500));
+      for (let i = 0; i < villageCount; i++) {
+        this._placeVillageWithFarms(map, buildingTypes);
+      }
+    }
+
+    // Place other buildings with adjusted counts
+    // Camp and city get extra placements for increased density
+    const otherBuildings = ['lighthouse', 'camp', 'camp', 'city', 'city', 'ruin', 'cave', 'mine', 'monster_camp', 'church', 'watchtower', 'training_ground', 'altar', 'spring', 'wishing_well', 'phone_booth', 'food_truck', 'bonfire', 'colossus_hand', 'vending_machine'];
     // Scale building count with map size — aim for ~8% coverage
     const buildingCount = Math.max(8, Math.floor((this.width * this.height) / 80));
 
@@ -333,13 +367,25 @@ export class MapGenerator {
       const typeId = otherBuildings[i % otherBuildings.length];
       const config = buildingTypes[typeId];
       if (config) {
-        this._placeBuilding(map, typeId, config);
+        if (typeId === 'lighthouse') {
+          this._placeLighthouseNearWater(map, config);
+        } else {
+          this._placeBuilding(map, typeId, config);
+        }
       }
     }
 
     // Place whirlpool on water if water exists
     if (buildingTypes.whirlpool) {
       this._placeWaterBuilding(map, 'whirlpool', buildingTypes.whirlpool);
+    }
+
+    // Place reefs on water (2-3 reefs)
+    if (buildingTypes.reef) {
+      const reefCount = 2 + this.rng.nextInt(0, 1); // 2-3 reefs
+      for (let i = 0; i < reefCount; i++) {
+        this._placeWaterBuilding(map, 'reef', buildingTypes.reef);
+      }
     }
   }
 
@@ -426,6 +472,165 @@ export class MapGenerator {
       if (!tile || tile.building) continue;
       if (tile.terrain !== 'water') continue;
       tile.building = typeId;
+      // If building has a triggerEvent, set it on the tile
+      if (_config && _config.triggerEvent) {
+        tile.event = _config.triggerEvent;
+      }
+      return;
+    }
+  }
+
+  /**
+   * Place lighthouse preferring tiles adjacent to water.
+   * Falls back to normal placement if no water-adjacent tile found.
+   */
+  _placeLighthouseNearWater(map, config) {
+    const allowed = config.allowedTerrains || [];
+    const forbidden = (config.adjacencyConstraints && config.adjacencyConstraints.forbidden) || [];
+    const spawnQ = Math.floor(this.width / 2);
+    const spawnR = Math.floor(this.height / 2);
+    const maxAttempts = 150;
+
+    // First pass: try to find a tile adjacent to water
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const q = this.rng.nextInt(0, this.width - 1);
+      const r = this.rng.nextInt(0, this.height - 1);
+      const tile = map.getTile(q, r);
+      if (!tile || tile.building) continue;
+      if (!allowed.includes(tile.terrain)) continue;
+      if (HexGrid.distance(q, r, spawnQ, spawnR) < 3) continue;
+
+      // Check adjacency constraints
+      const neighbors = HexGrid.neighbors(q, r);
+      let violates = false;
+      let hasWaterNeighbor = false;
+      for (const n of neighbors) {
+        const nt = map.getTile(n.q, n.r);
+        if (nt && nt.building && forbidden.includes(nt.building)) {
+          violates = true;
+          break;
+        }
+        if (nt && nt.terrain === 'water') {
+          hasWaterNeighbor = true;
+        }
+      }
+      if (violates) continue;
+      if (!hasWaterNeighbor) continue;
+
+      tile.building = 'lighthouse';
+      if (config.triggerEvent) {
+        tile.event = config.triggerEvent;
+      }
+      return { q, r };
+    }
+
+    // Fallback: place normally if no water-adjacent spot found
+    return this._placeBuilding(map, 'lighthouse', config);
+  }
+
+  /**
+   * Place a cluster of 3+ adjacent farm tiles.
+   * Finds a valid starting tile, then places farms on its neighbors.
+   */
+  _placeFarmCluster(map, config) {
+    const allowed = config.allowedTerrains || [];
+    const forbidden = (config.adjacencyConstraints && config.adjacencyConstraints.forbidden) || [];
+    const spawnQ = Math.floor(this.width / 2);
+    const spawnR = Math.floor(this.height / 2);
+    const maxAttempts = 100;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const q = this.rng.nextInt(0, this.width - 1);
+      const r = this.rng.nextInt(0, this.height - 1);
+      const tile = map.getTile(q, r);
+      if (!tile || tile.building) continue;
+      if (!allowed.includes(tile.terrain)) continue;
+      if (HexGrid.distance(q, r, spawnQ, spawnR) < 3) continue;
+
+      // Check adjacency constraints for the starting tile
+      const neighbors = HexGrid.neighbors(q, r);
+      let violates = false;
+      for (const n of neighbors) {
+        const nt = map.getTile(n.q, n.r);
+        if (nt && nt.building && forbidden.includes(nt.building)) {
+          violates = true;
+          break;
+        }
+      }
+      if (violates) continue;
+
+      // Find valid neighbors for the cluster
+      const validNeighbors = [];
+      for (const n of neighbors) {
+        if (!HexGrid.isInBounds(n.q, n.r, this.width, this.height)) continue;
+        const nt = map.getTile(n.q, n.r);
+        if (!nt || nt.building) continue;
+        if (!allowed.includes(nt.terrain)) continue;
+        if (HexGrid.distance(n.q, n.r, spawnQ, spawnR) < 3) continue;
+        validNeighbors.push(n);
+      }
+
+      // Need at least 2 valid neighbors to form a cluster of 3
+      if (validNeighbors.length < 2) continue;
+
+      // Place the cluster
+      tile.building = 'farm';
+      this.rng.shuffle(validNeighbors);
+      const clusterSize = Math.min(validNeighbors.length, 2 + this.rng.nextInt(0, 1)); // 3-4 farms
+      for (let i = 0; i < clusterSize; i++) {
+        const n = validNeighbors[i];
+        const nt = map.getTile(n.q, n.r);
+        if (nt) nt.building = 'farm';
+      }
+      return;
+    }
+  }
+
+  /**
+   * Place a village with 2-3 adjacent farms.
+   * Village goes on a grass tile, then farms are placed on its neighbors.
+   */
+  _placeVillageWithFarms(map, buildingTypes) {
+    const villageConfig = buildingTypes.village;
+    const farmConfig = buildingTypes.farm;
+    if (!villageConfig) return;
+
+    const allowed = villageConfig.allowedTerrains || ['grass'];
+    const spawnQ = Math.floor(this.width / 2);
+    const spawnR = Math.floor(this.height / 2);
+    const maxAttempts = 100;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      const q = this.rng.nextInt(0, this.width - 1);
+      const r = this.rng.nextInt(0, this.height - 1);
+      const tile = map.getTile(q, r);
+      if (!tile || tile.building) continue;
+      if (!allowed.includes(tile.terrain)) continue;
+      if (HexGrid.distance(q, r, spawnQ, spawnR) < 3) continue;
+
+      // Need grass neighbors for farms
+      const neighbors = HexGrid.neighbors(q, r);
+      const farmCandidates = [];
+      for (const n of neighbors) {
+        if (!HexGrid.isInBounds(n.q, n.r, this.width, this.height)) continue;
+        const nt = map.getTile(n.q, n.r);
+        if (!nt || nt.building) continue;
+        if (nt.terrain === 'grass') farmCandidates.push(n);
+      }
+      if (farmCandidates.length < 2) continue;
+
+      // Place village
+      tile.building = 'village';
+      if (villageConfig.triggerEvent) tile.event = villageConfig.triggerEvent;
+
+      // Place 2-3 farms on neighbors
+      this.rng.shuffle(farmCandidates);
+      const farmCount = Math.min(farmCandidates.length, 2 + this.rng.nextInt(0, 1));
+      for (let i = 0; i < farmCount; i++) {
+        const n = farmCandidates[i];
+        const nt = map.getTile(n.q, n.r);
+        if (nt) nt.building = 'farm';
+      }
       return;
     }
   }
@@ -434,12 +639,14 @@ export class MapGenerator {
    * Place items as events, ensuring terrain-item matching.
    * - If water exists → place boat
    * - If lava exists → place fire_boots
-   * - No duplicate items per map (Req 13.5)
+   * - Consumable items can appear multiple times (Req 10.2)
+   * - Combination material pairs both exist on map (Req 10.3)
    * - Only items relevant to map terrain (Req 13.6)
    */
   placeItems(map) {
     const terrainTypes = this.terrainConfig.terrainTypes;
     const items = this.itemConfig.items;
+    const combinations = this.itemConfig.combinations ?? [];
     const placedItems = new Set();
 
     // Determine which terrains exist on the map
@@ -463,11 +670,33 @@ export class MapGenerator {
       this._placeItemEvent(map, itemId, placedItems);
     }
 
+    // Ensure combination material pairs both exist (Req 10.3)
+    for (const recipe of combinations) {
+      const { materialA, materialB } = recipe;
+      if (!placedItems.has(materialA) && items[materialA]) {
+        this._placeItemEvent(map, materialA, placedItems);
+      }
+      if (!placedItems.has(materialB) && items[materialB]) {
+        this._placeItemEvent(map, materialB, placedItems);
+      }
+    }
+
     // Place optional items that are relevant to the map
     const optionalItems = this._getRelevantOptionalItems(items, existingTerrains, requiredItems);
     for (const itemId of optionalItems) {
       if (placedItems.has(itemId)) continue;
       this._placeItemEvent(map, itemId, placedItems);
+    }
+
+    // Place extra copies of consumable items (Req 10.2)
+    const consumableItems = Object.entries(items)
+      .filter(([, cfg]) => cfg.consumable === true)
+      .map(([id]) => id);
+    this.rng.shuffle(consumableItems);
+    const extraConsumableCount = Math.min(consumableItems.length, Math.floor((this.width * this.height) / 300));
+    for (let i = 0; i < extraConsumableCount; i++) {
+      const itemId = consumableItems[i % consumableItems.length];
+      this._placeItemEvent(map, itemId, new Set()); // pass empty set to allow duplicates
     }
   }
 
@@ -475,23 +704,30 @@ export class MapGenerator {
    * Get optional items relevant to the map's terrain
    */
   _getRelevantOptionalItems(items, existingTerrains, requiredItems) {
+    // Items that should NOT be placed on the map (combination results, legendaries)
+    const combinations = this.itemConfig.combinations ?? [];
+    const combinationResults = new Set(combinations.map(c => c.result));
+
     const optional = [];
     for (const [itemId, config] of Object.entries(items)) {
       if (requiredItems.includes(itemId)) continue;
+
+      // Skip combination result items — they're only obtainable through crafting
+      if (combinationResults.has(itemId)) continue;
+
+      // Skip legendary/epic quality items — too powerful for random pickup
+      if (config.quality === 'legendary' || config.quality === 'epic') continue;
 
       // Check if item is relevant to existing terrains
       let relevant = false;
       for (const effect of (config.effects || [])) {
         if (effect.type === 'terrain_pass') {
-          // Only include if the terrain it enables exists
           if (effect.terrainType && existingTerrains.has(effect.terrainType)) {
             relevant = true;
           } else if (effect.condition) {
-            // Elevation-based items (rope_claw, parachute) are always relevant
             relevant = true;
           }
         } else {
-          // Non-terrain-pass items (telescope, tent, etc.) are generally relevant
           relevant = true;
         }
       }
@@ -499,7 +735,6 @@ export class MapGenerator {
         optional.push(itemId);
       }
     }
-    // Shuffle for variety
     this.rng.shuffle(optional);
     return optional;
   }
@@ -601,20 +836,64 @@ export class MapGenerator {
 
   /**
    * Place random events on empty tiles based on terrain event weights.
-   * Aim for ~15% of tiles having events for good exploration density.
+   * Uses event config allowedTerrains to filter events by terrain.
+   * Aim for ~35% of tiles having events for good exploration density.
    */
   _placeRandomEvents(map) {
     const terrainTypes = this.terrainConfig.terrainTypes;
-    const eventConfig = this.itemConfig; // events are separate but we use terrain weights
-    const EVENT_DENSITY = 0.15; // 15% of tiles get events
+    const EVENT_DENSITY = 0.35; // 35% of tiles get events
+    const events = this.eventConfig?.events ?? {};
 
-    // Available event IDs by type
-    const eventsByType = {
-      combat: ['wolf_attack', 'swamp_creature'],
-      treasure: ['chest_01', 'chest_02', 'herb_discovery', 'floating_crate'],
-      choice: ['stargazing', 'forest_spirit', 'will_o_wisp', 'desert_merchant',
-               'wandering_healer', 'ancient_shrine', 'ice_crack', 'sandstorm', 'blizzard'],
-    };
+    // Build event pools by type, with allowedTerrains info
+    // Exclude overnight events, building events, and special trigger events from map placement
+    const eventsByType = { combat: [], treasure: [], choice: [] };
+    const excludePrefixes = ['overnight_', 'lighthouse_event', 'camp_rest_event', 'church_prayer',
+      'watchtower_event', 'reef_event', 'training_event', 'altar_event', 'wishing_well_event',
+      'phone_booth_event', 'food_truck_event', 'bonfire_event', 'hollow_tree_event',
+      'colossus_hand_event', 'vending_machine_event', 'village_event', 'city_market',
+      'thief_city_arrest', 'sheriff_city_bonus', 'accordion_party', 'campfire_party',
+      'mystery_egg_hatch', 'tutorial'];
+    for (const [eventId, def] of Object.entries(events)) {
+      // Skip non-map events
+      if (excludePrefixes.some(p => eventId.startsWith(p) || eventId === p)) continue;
+      const type = def.type;
+      if (eventsByType[type]) {
+        eventsByType[type].push({ id: eventId, allowedTerrains: def.allowedTerrains ?? ['any'] });
+      }
+    }
+
+    // Fallback hardcoded pools if no event config provided
+    if (eventsByType.combat.length === 0 && eventsByType.treasure.length === 0 && eventsByType.choice.length === 0) {
+      eventsByType.combat = [
+        { id: 'wolf_attack', allowedTerrains: ['grass', 'forest'] },
+        { id: 'swamp_creature', allowedTerrains: ['swamp'] },
+        { id: 'snake_encounter', allowedTerrains: ['grass', 'forest', 'swamp'] },
+        { id: 'undead_battle', allowedTerrains: ['any_land'] },
+        { id: 'bandit_encounter', allowedTerrains: ['grass', 'desert', 'forest'] },
+      ];
+      eventsByType.treasure = [
+        { id: 'chest_01', allowedTerrains: ['any'] },
+        { id: 'chest_02', allowedTerrains: ['any'] },
+        { id: 'herb_discovery', allowedTerrains: ['forest', 'swamp'] },
+        { id: 'floating_crate', allowedTerrains: ['water'] },
+      ];
+      eventsByType.choice = [
+        { id: 'stargazing', allowedTerrains: ['any_land'] },
+        { id: 'forest_spirit', allowedTerrains: ['forest'] },
+        { id: 'will_o_wisp', allowedTerrains: ['swamp', 'forest'] },
+        { id: 'desert_merchant', allowedTerrains: ['desert'] },
+        { id: 'wandering_healer', allowedTerrains: ['any_land'] },
+        { id: 'ancient_shrine', allowedTerrains: ['any_land'] },
+        { id: 'ice_crack', allowedTerrains: ['ice'] },
+        { id: 'sandstorm', allowedTerrains: ['desert'] },
+        { id: 'blizzard', allowedTerrains: ['ice'] },
+        { id: 'poison_cave', allowedTerrains: ['forest', 'swamp'] },
+        { id: 'boulder_block', allowedTerrains: ['any_land'] },
+      ];
+    }
+
+    // Track event usage to maximize variety
+    const eventUsageCount = new Map();
 
     for (let r = 0; r < this.height; r++) {
       for (let q = 0; q < this.width; q++) {
@@ -644,13 +923,36 @@ export class MapGenerator {
           eventType = 'choice';
         }
 
-        // Pick a random event of that type
+        // Filter pool by terrain
         const pool = eventsByType[eventType];
-        if (pool && pool.length > 0) {
-          tile.event = pool[this.rng.nextInt(0, pool.length - 1)];
+        const filtered = pool ? pool.filter(e => this._isTerrainAllowed(e.allowedTerrains, tile.terrain)) : [];
+        if (filtered.length > 0) {
+          // Prefer unused events, then least-used
+          const minUsage = Math.min(...filtered.map(e => eventUsageCount.get(e.id) ?? 0));
+          const leastUsed = filtered.filter(e => (eventUsageCount.get(e.id) ?? 0) === minUsage);
+          const picked = leastUsed[this.rng.nextInt(0, leastUsed.length - 1)];
+          tile.event = picked.id;
+          eventUsageCount.set(picked.id, (eventUsageCount.get(picked.id) ?? 0) + 1);
         }
       }
     }
+  }
+
+  /**
+   * Check if a terrain type is allowed by an allowedTerrains array.
+   * "any" = all terrains. "any_land" = all terrains except water.
+   * @param {string[]} allowedTerrains
+   * @param {string} terrain
+   * @returns {boolean}
+   */
+  _isTerrainAllowed(allowedTerrains, terrain) {
+    if (!allowedTerrains || allowedTerrains.length === 0) return true;
+    for (const allowed of allowedTerrains) {
+      if (allowed === 'any') return true;
+      if (allowed === 'any_land' && terrain !== 'water') return true;
+      if (allowed === terrain) return true;
+    }
+    return false;
   }
 
   /**

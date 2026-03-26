@@ -112,10 +112,14 @@
     const BUILDING_MARKERS = {
       portal: '🌀', teleporter: '⚡', lighthouse: '🗼', camp: '⛺',
       city: '🏘️', ruin: '🏚️', cave: '🕳️', farm: '🌾', mine: '⛏️',
-      monster_camp: '👹', whirlpool: '🌊',
+      monster_camp: '👹', whirlpool: '🌊', church: '⛪', watchtower: '🔭',
+      reef: '🪸', training_ground: '🏋️', altar: '🪨', spring: '💧',
+      wishing_well: '🪙', phone_booth: '📞', food_truck: '🍔',
+      bonfire: '🔥', hollow_tree: '🌳', colossus_hand: '✋',
+      vending_machine: '🥫', village: '🏡',
     };
 
-    let terrainConfig, buildingConfig, itemConfig;
+    let terrainConfig, buildingConfig, itemConfig, eventConfig;
     let currentMap = null, currentWidth = 0, currentHeight = 0;
     let fogSystem = null, playerState = null, itemSystem = null;
     let playerPos = { col: 0, row: 0 };
@@ -291,7 +295,25 @@
       desert: '../assets/terrain/desert.png',
       desert_snow: '../assets/terrain/desert_snow.png',
       water: '../assets/terrain/water.png',
+      forest: '../assets/terrain/forest.png',
+      forest_deep: '../assets/terrain/forest_deep.png',
+      forest_snow: '../assets/terrain/forest_snow.png',
+      swamp: '../assets/terrain/swamp.png',
+      lava: '../assets/terrain/lava.png',
+      ice: '../assets/terrain/ice.png',
     };
+
+    // UI marker sprites
+    const UI_MARKER_FILES = {
+      player: '../assets/ui/player.png',
+      event: '../assets/ui/event_marker.png',
+      monster: '../assets/ui/monster_marker.png',
+      treasure: '../assets/ui/treature_marker.png',
+    };
+    const uiMarkerTextures = {};
+
+    // Building sprites
+    const buildingSpriteTextures = {};
     // Elevation threshold for snow variants
     const SNOW_THRESHOLD = 8;
 
@@ -301,48 +323,99 @@
           spriteTextures[key] = await PIXI.Assets.load(path);
         } catch (_) { /* not available, will use color fallback */ }
       }
+      for (const [key, path] of Object.entries(UI_MARKER_FILES)) {
+        try {
+          uiMarkerTextures[key] = await PIXI.Assets.load(path);
+        } catch (_) { /* fallback to emoji */ }
+      }
+      // Load building sprites from config
+      if (buildingConfig?.buildingTypes) {
+        for (const [id, bc] of Object.entries(buildingConfig.buildingTypes)) {
+          if (bc.sprite) {
+            try {
+              buildingSpriteTextures[id] = await PIXI.Assets.load('../' + bc.sprite);
+            } catch (_) { /* fallback to emoji */ }
+          }
+        }
+      }
     }
 
     // Get the right texture for a terrain + elevation combo
-    function getTerrainTexture(terrain, elevation) {
+    // For forest: randomly pick between forest and forest_deep
+    function getTerrainTexture(terrain, elevation, col, row) {
       // Check for snow variant at high elevation
       if (elevation >= SNOW_THRESHOLD) {
         const snowKey = terrain + '_snow';
-        if (spriteTextures[snowKey]) return spriteTextures[snowKey];
+        if (spriteTextures[snowKey]) return { key: snowKey, tex: spriteTextures[snowKey] };
       }
-      return spriteTextures[terrain] || null;
+      // Forest: randomly pick variant based on position hash
+      if (terrain === 'forest' && spriteTextures['forest_deep']) {
+        const hash = ((col * 7 + row * 13) % 3);
+        if (hash === 0 && spriteTextures['forest_deep']) {
+          return { key: 'forest_deep', tex: spriteTextures['forest_deep'] };
+        }
+      }
+      return { key: terrain, tex: spriteTextures[terrain] || null };
     }
 
     // Pre-generate hex-clipped textures from sprite textures
     const hexClippedTextures = {};
 
+    /**
+     * Create a hex-clipped texture. All sprites clipped to standard hex.
+     * Tall sprites are bottom-aligned so the base terrain shows correctly.
+     * Returns { texture, overflow: 0 }.
+     */
     function createHexClippedTexture(sourceTexture, size, tint) {
+      const hexW = size * 2;
+      const hexH = size * 2;
       const container = new PIXI.Container();
-      const sprite = new PIXI.Sprite(sourceTexture);
-      sprite.anchor.set(0.5);
-      sprite.x = size;
-      sprite.y = size;
-      sprite.width = size * 2;
-      sprite.height = size * 2;
-      if (tint !== undefined) sprite.tint = tint;
 
       const maskG = new PIXI.Graphics();
       maskG.beginFill(0xffffff);
       maskG.drawPolygon(hexPoints(size, size, size));
       maskG.endFill();
       container.addChild(maskG);
+
+      const srcW = sourceTexture.width;
+      const srcH = sourceTexture.height;
+      const aspectRatio = srcH / srcW;
+      const isTall = aspectRatio > 1.05;
+
+      const sprite = new PIXI.Sprite(sourceTexture);
+      if (isTall) {
+        const scaledH = hexW * aspectRatio;
+        sprite.width = hexW;
+        sprite.height = scaledH;
+        sprite.x = 0;
+        sprite.y = hexH - scaledH; // bottom-align
+      } else {
+        sprite.anchor.set(0.5);
+        sprite.x = size;
+        sprite.y = size;
+        sprite.width = hexW;
+        sprite.height = hexH;
+      }
+      if (tint !== undefined) sprite.tint = tint;
       sprite.mask = maskG;
       container.addChild(sprite);
 
-      return app.renderer.generateTexture(container, {
+      const tex = app.renderer.generateTexture(container, {
         resolution: 2,
-        region: new PIXI.Rectangle(0, 0, size * 2, size * 2)
+        region: new PIXI.Rectangle(0, 0, hexW, hexH),
       });
+      container.destroy({ children: true });
+
+      return { texture: tex, overflow: 0 };
     }
 
     // Build cached hex textures for each terrain+elevation combo
+    // Stores { texture, overflow } for each cache key
     function buildHexTextureCache() {
-      hexClippedTextures.length = 0; // clear
+      // Clear old entries
+      for (const key of Object.keys(hexClippedTextures)) {
+        delete hexClippedTextures[key];
+      }
       for (const [key, tex] of Object.entries(spriteTextures)) {
         for (let elev = 0; elev <= 10; elev++) {
           const factor = 0.55 + (elev / 10) * 0.5;
@@ -354,11 +427,16 @@
       }
     }
 
-    function getCachedHexTexture(terrain, elevation) {
+    function getCachedHexTexture(terrain, elevation, col, row) {
       // Check snow variant
       if (elevation >= SNOW_THRESHOLD) {
         const snowKey = `${terrain}_snow_e${elevation}`;
         if (hexClippedTextures[snowKey]) return hexClippedTextures[snowKey];
+      }
+      // Forest: use forest_deep for low elevation (<5), forest for higher
+      if (terrain === 'forest' && elevation < 5) {
+        const deepKey = `forest_deep_e${elevation}`;
+        if (hexClippedTextures[deepKey]) return hexClippedTextures[deepKey];
       }
       const key = `${terrain}_e${elevation}`;
       return hexClippedTextures[key] || null;
@@ -438,10 +516,11 @@
           const tile = map.getTile(col, row);
           if (!tile) continue;
           const pos = offsetToPixel(col, row, HEX_SIZE, tile.elevation);
-          const cachedTex = getCachedHexTexture(tile.terrain, tile.elevation);
-          if (cachedTex) {
-            const s = new PIXI.Sprite(cachedTex);
-            s.anchor.set(0.5); s.x = pos.x; s.y = pos.y;
+          const cached = getCachedHexTexture(tile.terrain, tile.elevation, col, row);
+          if (cached && cached.texture) {
+            const s = new PIXI.Sprite(cached.texture);
+            s.anchor.set(0.5);
+            s.x = pos.x; s.y = pos.y;
             spriteLayer.addChild(s);
             g.lineStyle(0.5, 0x1a1a2e, 0.2);
             g.beginFill(0, 0);
@@ -503,9 +582,23 @@
       updatePlayerInfo();
     }
 
+    // Pre-rendered emoji textures (much faster than PIXI.Text per tile)
+    const emojiTextures = {};
+    function getEmojiTexture(emoji, fontSize) {
+      const key = `${emoji}_${fontSize}`;
+      if (emojiTextures[key]) return emojiTextures[key];
+      const t = new PIXI.Text(emoji, { fontSize });
+      const tex = app.renderer.generateTexture(t, { resolution: 2 });
+      t.destroy();
+      emojiTextures[key] = tex;
+      return tex;
+    }
+
     function updateMarkers(map, width, height) {
       if (!markersContainer) return;
       markersContainer.removeChildren();
+
+      const markerSize = HEX_SIZE * 1.2;
 
       for (let row = 0; row < height; row++) {
         for (let col = 0; col < width; col++) {
@@ -521,18 +614,50 @@
           const pos = offsetToPixel(col, row, HEX_SIZE, tile.elevation);
 
           if (tile.building) {
-            const emoji = BUILDING_MARKERS[tile.building] || '🏗️';
-            const t = new PIXI.Text(emoji, { fontSize: HEX_SIZE * 0.7 });
-            t.anchor.set(0.5); t.x = pos.x; t.y = pos.y - 2;
-            markersContainer.addChild(t);
+            const bTex = buildingSpriteTextures[tile.building];
+            if (bTex) {
+              const s = new PIXI.Sprite(bTex);
+              s.anchor.set(0.5);
+              s.width = markerSize;
+              s.height = markerSize;
+              s.x = pos.x; s.y = pos.y - 2;
+              markersContainer.addChild(s);
+            } else {
+              const emoji = BUILDING_MARKERS[tile.building] || '🏗️';
+              const tex = getEmojiTexture(emoji, HEX_SIZE * 0.7);
+              const s = new PIXI.Sprite(tex);
+              s.anchor.set(0.5); s.x = pos.x; s.y = pos.y - 2;
+              markersContainer.addChild(s);
+            }
           }
 
           if (tile.event) {
-            let emoji = '❓';
-            if (tile.event.startsWith('item_pickup_')) emoji = '🎁';
-            const t = new PIXI.Text(emoji, { fontSize: HEX_SIZE * 0.5 });
-            t.anchor.set(0.5); t.x = pos.x; t.y = pos.y + HEX_SIZE * 0.3;
-            markersContainer.addChild(t);
+            // Determine marker type
+            let markerType = 'event';
+            if (tile.event.startsWith('item_pickup_')) {
+              markerType = 'treasure';
+            } else if (eventConfig?.events?.[tile.event]) {
+              const evtType = eventConfig.events[tile.event].type;
+              if (evtType === 'combat') markerType = 'monster';
+              else if (evtType === 'treasure') markerType = 'treasure';
+            }
+            const mTex = uiMarkerTextures[markerType];
+            if (mTex) {
+              const s = new PIXI.Sprite(mTex);
+              s.anchor.set(0.5);
+              s.width = markerSize * 0.7;
+              s.height = markerSize * 0.7;
+              s.x = pos.x; s.y = pos.y + HEX_SIZE * 0.3;
+              markersContainer.addChild(s);
+            } else {
+              let emoji = '❓';
+              if (markerType === 'treasure') emoji = '📦';
+              else if (markerType === 'monster') emoji = '⚔️';
+              const tex = getEmojiTexture(emoji, HEX_SIZE * 0.5);
+              const s = new PIXI.Sprite(tex);
+              s.anchor.set(0.5); s.x = pos.x; s.y = pos.y + HEX_SIZE * 0.3;
+              markersContainer.addChild(s);
+            }
           }
         }
       }
@@ -540,8 +665,18 @@
       // Player marker
       const playerTile = map.getTile(playerPos.col, playerPos.row);
       const spawnPos = offsetToPixel(playerPos.col, playerPos.row, HEX_SIZE, playerTile?.elevation);
-      playerMarker = new PIXI.Text('🧑', { fontSize: HEX_SIZE * 1.1 });
-      playerMarker.anchor.set(0.5);
+      const pTex = uiMarkerTextures.player;
+      if (pTex) {
+        playerMarker = new PIXI.Sprite(pTex);
+        playerMarker.anchor.set(0.5);
+        playerMarker.width = HEX_SIZE * 1.4;
+        playerMarker.height = HEX_SIZE * 1.4;
+        playerMarker.scale.x = Math.abs(playerMarker.scale.x) * playerFacing;
+      } else {
+        const tex = getEmojiTexture('🧑', HEX_SIZE * 1.1);
+        playerMarker = new PIXI.Sprite(tex);
+        playerMarker.anchor.set(0.5);
+      }
       playerMarker.x = spawnPos.x;
       playerMarker.y = spawnPos.y;
       markersContainer.addChild(playerMarker);
@@ -580,7 +715,15 @@
       }
     }
 
+    let playerFacing = 1; // 1 = right, -1 = left
+
     function movePlayer(col, row) {
+      // Determine facing direction
+      const prevPos = offsetToPixel(playerPos.col, playerPos.row, HEX_SIZE, 5);
+      const newPos = offsetToPixel(col, row, HEX_SIZE, 5);
+      if (newPos.x > prevPos.x) playerFacing = 1;
+      else if (newPos.x < prevPos.x) playerFacing = -1;
+
       playerPos = { col, row };
       selectedTile = null;
 
@@ -665,17 +808,29 @@
     function buildLegend() {
       const legend = document.getElementById('legend');
       legend.innerHTML = '<div style="font-weight:bold;margin-bottom:4px;">地形 (深=低海拔 浅=高海拔)</div>';
+      const terrainNames = { grass: '草地', desert: '荒漠', water: '水域', forest: '森林', swamp: '沼泽', lava: '熔岩', ice: '浮冰' };
       for (const [terrain, color] of Object.entries(TERRAIN_COLORS)) {
+        const name = terrainNames[terrain] || terrain;
         const hasSprite = !!spriteTextures[terrain];
         if (hasSprite) {
-          legend.innerHTML += `<div class="legend-item"><img src="../assets/terrain/${terrain}.png" style="width:14px;height:14px;border-radius:2px;border:1px solid #555;object-fit:cover;">${terrain}</div>`;
+          legend.innerHTML += `<div class="legend-item"><img src="../assets/terrain/${terrain}.png" style="width:14px;height:14px;border-radius:2px;border:1px solid #555;object-fit:cover;object-position:bottom;">${name}</div>`;
         } else {
           const hex = '#' + color.toString(16).padStart(6, '0');
-          legend.innerHTML += `<div class="legend-item"><div class="legend-color" style="background:${hex}"></div>${terrain}</div>`;
+          legend.innerHTML += `<div class="legend-item"><div class="legend-color" style="background:${hex}"></div>${name}</div>`;
         }
       }
       legend.innerHTML += '<div style="margin-top:6px;font-weight:bold;">标记</div>';
-      legend.innerHTML += '<div class="legend-item">🧑 出生点 🎁 道具 ❓ 事件</div>';
+      const markerItems = [
+        { src: '../assets/ui/player.png', label: '玩家' },
+        { src: '../assets/ui/monster_marker.png', label: '战斗' },
+        { src: '../assets/ui/treature_marker.png', label: '宝箱' },
+        { src: '../assets/ui/event_marker.png', label: '事件' },
+      ];
+      let markerHtml = '';
+      for (const m of markerItems) {
+        markerHtml += `<div class="legend-item"><img src="${m.src}" style="width:14px;height:14px;object-fit:contain;">${m.label}</div>`;
+      }
+      legend.innerHTML += markerHtml;
     }
 
     async function init() {
@@ -683,6 +838,7 @@
         terrainConfig = await (await fetch('../config/terrain.json')).json();
         buildingConfig = await (await fetch('../config/building.json')).json();
         itemConfig = await (await fetch('../config/item.json')).json();
+        eventConfig = await (await fetch('../config/event.json')).json();
       } catch (e) {
         document.getElementById('stats').textContent = '配置加载失败';
         return;
@@ -696,7 +852,7 @@
     function generateAndRender() {
       const seed = parseInt(document.getElementById('seed').value) || 42;
       const size = document.getElementById('size').value;
-      const gen = new MapGenerator(seed, size, terrainConfig, buildingConfig, itemConfig);
+      const gen = new MapGenerator(seed, size, terrainConfig, buildingConfig, itemConfig, eventConfig);
       currentMap = gen.generate();
       currentWidth = gen.width;
       currentHeight = gen.height;

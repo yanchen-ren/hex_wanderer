@@ -381,6 +381,12 @@ class ItemSystem {
 
   /** 获取玩家持有的所有道具列表 */
   getInventory() → [{itemId, name, quality, enabled, effects}]
+
+  /** 消耗一个道具（从背包移除） */
+  consumeItem(itemId) → boolean
+
+  /** 检查并执行道具组合（获得新道具时自动调用） */
+  checkCombinations() → { combined: boolean, result?: string, consumed?: [string, string] }
 }
 ```
 
@@ -494,6 +500,7 @@ class PlayerState {
   apMax: number
   turnNumber: number
   relicsCollected: number
+  gold: number
   statusEffects: [{id, duration, effect}]
 
   /** 应用伤害（含免疫判定） */
