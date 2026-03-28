@@ -23,7 +23,7 @@
     "city": {
       "name": "城市",
       "description": "繁华的城镇，可以交易道具和获取情报",
-      "effect": { "restHpBonus": 15, "restApBonus": 1, "refreshSuppression": true },
+      "effect": { "restHpBonus": 0, "restApBonus": 0, "refreshSuppression": true },
       "allowedTerrains": ["grass", "desert"],
       "adjacencyConstraints": { "forbidden": ["monster_camp", "whirlpool"] },
       "triggerEvent": "city_market",
@@ -236,6 +236,15 @@
       "triggerEvent": "village_event",
       "repeatable": true,
       "sprite": "assets/building/village.png"
+    },
+    "castle": {
+      "name": "城堡",
+      "description": "雄伟的城堡，可以在此修炼提升能力，过夜恢复效果极佳",
+      "effect": { "type": "trigger_event", "restHpBonus": 0, "restApBonus": 0 },
+      "allowedTerrains": ["grass", "desert"],
+      "adjacencyConstraints": { "forbidden": ["monster_camp"] },
+      "triggerEvent": "castle_event",
+      "sprite": "assets/building/castle.png"
     }
   }
 }

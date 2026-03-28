@@ -54,8 +54,116 @@ export class EventSystem {
       return { ...choice, originalIndex: index, conditionsMet };
     }).filter(c => c.conditionsMet);
 
+    // Hide trade choices where all items in pool are already owned/blocked
+    if (this._itemSystem) {
+      for (let i = availableChoices.length - 1; i >= 0; i--) {
+        const choice = availableChoices[i];
+        const outcomes = choice.outcomes ?? [];
+        const tradeOutcome = outcomes.find(o => o.result?.type === 'trade' && o.result?.itemPool);
+        if (tradeOutcome) {
+          const pool = tradeOutcome.result.itemPool;
+          const hasAcquirable = pool.some(id => this._itemSystem.canAcquire(id));
+          if (!hasAcquirable) {
+            availableChoices.splice(i, 1);
+          }
+        }
+      }
+    }
+
     // Restore previous terrain
     this._playerState._currentTerrain = prevTerrain;
+
+    // Beast flute: inject "召唤动物伙伴" option into combat events
+    if (def.type === 'combat' && this._itemSystem && this._itemSystem.hasActiveItem('beast_flute')) {
+      // Find the first "fight" choice and create a beast-assisted version
+      const fightChoice = availableChoices.find(c => c.originalIndex === 0);
+      if (fightChoice) {
+        // Clone the fight outcomes but improve them (less damage, more gold)
+        const beastOutcomes = (fightChoice.outcomes ?? []).map(o => {
+          const r = o.result;
+          if (!r) return o;
+          const improved = { ...r };
+          // Reduce HP loss by ~40%
+          if (r.type === 'hp_change' && (r.value ?? 0) < 0) {
+            improved.value = Math.ceil(r.value * 0.6);
+          }
+          if (r.type === 'multi' && Array.isArray(r.results)) {
+            improved.results = r.results.map(sub => {
+              if (sub.type === 'hp_change' && (sub.value ?? 0) < 0) {
+                return { ...sub, value: Math.ceil(sub.value * 0.6) };
+              }
+              return sub;
+            });
+          }
+          return { ...o, result: improved };
+        });
+        // Shift probabilities toward better outcomes
+        if (beastOutcomes.length >= 2) {
+          beastOutcomes[0].probability = Math.min(1, (beastOutcomes[0].probability ?? 0.5) + 0.2);
+          const remaining = 1 - beastOutcomes[0].probability;
+          const otherTotal = beastOutcomes.slice(1).reduce((s, o) => s + (o.probability ?? 0), 0);
+          if (otherTotal > 0) {
+            for (let i = 1; i < beastOutcomes.length; i++) {
+              beastOutcomes[i].probability = (beastOutcomes[i].probability ?? 0) / otherTotal * remaining;
+            }
+          }
+        }
+        availableChoices.push({
+          text: '🐾 吹响唤兽笛召唤伙伴助战',
+          conditions: [],
+          outcomes: beastOutcomes,
+          originalIndex: availableChoices.length,
+          conditionsMet: true,
+        });
+      }
+    }
+
+    // Balloon: inject "扎破气球" option into combat events (consumable, difficulty-based)
+    if (def.type === 'combat' && this._itemSystem && this._itemSystem.hasActiveItem('balloon')) {
+      const effects = this._itemSystem.getActiveEffects();
+      const scareChance = effects.scareChance ?? 0;
+      // Harder enemies (deathWarning) are less likely to be scared
+      const difficultyMod = def.deathWarning ? 0.5 : 1.0;
+      if (scareChance > 0 && this._random() < scareChance * difficultyMod) {
+        // Find the best gold reward from fight outcomes to use as scare reward
+        const fightChoice = availableChoices.find(c => c.originalIndex === 0);
+        let goldReward = 15;
+        if (fightChoice) {
+          for (const o of (fightChoice.outcomes ?? [])) {
+            const r = o.result;
+            if (r?.type === 'gold_change' && (r.value ?? 0) > goldReward) goldReward = r.value;
+            if (r?.type === 'multi' && Array.isArray(r.results)) {
+              for (const sub of r.results) {
+                if (sub.type === 'gold_change' && (sub.value ?? 0) > goldReward) goldReward = sub.value;
+              }
+            }
+          }
+        }
+        // Find the worst HP loss for the "angered" outcome
+        let worstHpLoss = -20;
+        if (fightChoice) {
+          for (const o of (fightChoice.outcomes ?? [])) {
+            const r = o.result;
+            if (r?.type === 'hp_change' && (r.value ?? 0) < worstHpLoss) worstHpLoss = r.value;
+            if (r?.type === 'multi' && Array.isArray(r.results)) {
+              for (const sub of r.results) {
+                if (sub.type === 'hp_change' && (sub.value ?? 0) < worstHpLoss) worstHpLoss = sub.value;
+              }
+            }
+          }
+        }
+        availableChoices.push({
+          text: '🎈 扎破气球吓唬敌人（消耗气球）',
+          conditions: [],
+          outcomes: [
+            { probability: 0.7, result: { type: 'multi', results: [{ type: 'consume_item', itemId: 'balloon' }, { type: 'gold_change', value: goldReward }], message: `砰！巨大的爆炸声把敌人吓跑了！你捡起了它们掉落的金币。+${goldReward} 金币` } },
+            { probability: 0.3, result: { type: 'multi', results: [{ type: 'consume_item', itemId: 'balloon' }, { type: 'hp_change', value: Math.floor(worstHpLoss * 1.3) }], message: `砰！爆炸声激怒了敌人！它们发狂般地攻击你！${Math.floor(worstHpLoss * 1.3)} HP` } },
+          ],
+          originalIndex: availableChoices.length,
+          conditionsMet: true,
+        });
+      }
+    }
 
     // Earphone hint: small chance to mark a positive option (Task 8.4)
     if (this._itemSystem) {
@@ -217,14 +325,8 @@ export class EventSystem {
 
       // Building influence on refresh chance
       if (tile.building) {
-        const buildingDef = this._buildingTypes[tile.building];
-        if (buildingDef?.effect?.eventRefreshBonus) {
-          refreshChance += buildingDef.effect.eventRefreshBonus;
-        }
-        // Cities suppress event refresh
-        if (buildingDef?.effect?.refreshSuppression) {
-          continue;
-        }
+        // Skip all building tiles — buildings have their own event system
+        continue;
       }
 
       if (refreshChance <= 0) continue;

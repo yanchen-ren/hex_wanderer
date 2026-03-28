@@ -135,16 +135,16 @@ export class RenderEngine {
     this.layers.clearLayer('entities');
     if (!this.mapData) return;
     const hr = this.hexRenderer;
-    const markerSize = this.hexSize * 1.2;
+    const markerSize = this.hexSize * 1.6;
     for (let row = 0; row < this.mapHeight; row++) {
       for (let col = 0; col < this.mapWidth; col++) {
         const tile = this.mapData.getTile(col, row);
         if (!tile) continue;
-        if (this.fogEnabled && this.getFogState) {
-          if (this.getFogState(col, row) !== 'visible') continue;
-        }
+        const vis = (this.fogEnabled && this.getFogState) ? this.getFogState(col, row) : 'visible';
+        if (vis === 'unexplored') continue;
         const pos = hr.offsetToPixel(col, row, tile.elevation);
         if (tile.building) {
+          const isExplored = vis === 'explored';
           // Try building sprite from config, fall back to emoji
           const bDef = this.buildingConfig?.buildingTypes?.[tile.building];
           const bSpritePath = bDef?.sprite;
@@ -156,6 +156,7 @@ export class RenderEngine {
             s.height = markerSize;
             s.x = pos.x;
             s.y = pos.y - 2;
+            if (isExplored) s.alpha = 0.6;
             this.layers.building.addChild(s);
           } else {
             const emoji = AssetLoader.getBuildingEmoji(tile.building);
@@ -164,10 +165,11 @@ export class RenderEngine {
             s.anchor.set(0.5);
             s.x = pos.x;
             s.y = pos.y - 2;
+            if (isExplored) s.alpha = 0.6;
             this.layers.building.addChild(s);
           }
         }
-        if (tile.event && !tile.building) {
+        if (tile.event && !tile.building && vis === 'visible') {
           // Determine marker type based on event config
           let markerType = 'event';
           if (typeof tile.event === 'string') {
@@ -252,19 +254,64 @@ export class RenderEngine {
   _renderFogLayer() {
     this.layers.clearLayer('fog');
     if (!this.fogEnabled || !this.getFogState || !this.mapData) return;
-    const fg = new PIXI.Graphics();
     const hr = this.hexRenderer;
+
+    // Collect explored building tile positions
+    const exploredBuildingKeys = new Set();
+    for (let row = 0; row < this.mapHeight; row++) {
+      for (let col = 0; col < this.mapWidth; col++) {
+        const tile = this.mapData.getTile(col, row);
+        if (tile && tile.building && this.getFogState(col, row) === 'explored') {
+          exploredBuildingKeys.add(`${col},${row}`);
+        }
+      }
+    }
+
+    // Draw fog, skipping explored building tiles
+    const fg = new PIXI.Graphics();
     for (let row = 0; row < this.mapHeight; row++) {
       for (let col = 0; col < this.mapWidth; col++) {
         const tile = this.mapData.getTile(col, row);
         if (!tile) continue;
         const vis = this.getFogState(col, row);
         if (vis === 'visible') continue;
+        if (exploredBuildingKeys.has(`${col},${row}`)) continue;
         const pos = hr.offsetToPixel(col, row, tile.elevation);
         hr.drawFogHex(fg, pos.x, pos.y, vis);
       }
     }
     this.layers.fog.addChild(fg);
+
+    // Draw building icons on top of fog for explored building tiles
+    const markerSize = this.hexSize * 1.6;
+    for (const key of exploredBuildingKeys) {
+      const [col, row] = key.split(',').map(Number);
+      const tile = this.mapData.getTile(col, row);
+      if (!tile) continue;
+      const pos = hr.offsetToPixel(col, row, tile.elevation);
+      const bDef = this.buildingConfig?.buildingTypes?.[tile.building];
+      const bSpritePath = bDef?.sprite;
+      const bTex = bSpritePath ? this.assetLoader.getTexture(bSpritePath) : null;
+      if (bTex) {
+        const s = new PIXI.Sprite(bTex);
+        s.anchor.set(0.5);
+        s.width = markerSize;
+        s.height = markerSize;
+        s.x = pos.x;
+        s.y = pos.y - 2;
+        s.alpha = 0.65;
+        this.layers.fog.addChild(s);
+      } else {
+        const emoji = AssetLoader.getBuildingEmoji(tile.building);
+        const tex = this._getEmojiTexture(emoji, this.hexSize * 0.7);
+        const s = new PIXI.Sprite(tex);
+        s.anchor.set(0.5);
+        s.x = pos.x;
+        s.y = pos.y - 2;
+        s.alpha = 0.65;
+        this.layers.fog.addChild(s);
+      }
+    }
   }
   updatePlayerPosition(col, row) {
     // Determine facing direction based on movement
@@ -319,6 +366,56 @@ export class RenderEngine {
     this.fogEnabled = enabled;
     this._renderMarkers();
     this._renderFogLayer();
+  }
+
+  /**
+   * Render path highlight on the decoration layer.
+   * @param {Array<{q:number, r:number}>} path - path nodes (excluding start)
+   * @param {number[]} stepCosts - AP cost per step
+   * @param {number} currentAP - player's current AP
+   */
+  renderPath(path, stepCosts, currentAP) {
+    this.clearPath();
+    if (!path || path.length === 0 || !this.mapData) return;
+
+    const g = new PIXI.Graphics();
+    const hr = this.hexRenderer;
+    let apLeft = currentAP;
+
+    for (let i = 0; i < path.length; i++) {
+      const node = path[i];
+      const tile = this.mapData.getTile(node.q, node.r);
+      if (!tile) continue;
+      const pos = hr.offsetToPixel(node.q, node.r, tile.elevation);
+      const cost = stepCosts[i] ?? 0;
+      const isLast = i === path.length - 1;
+
+      if (apLeft >= cost) {
+        // Reachable this turn — brighter cyan fill
+        g.beginFill(0x00bcd4, 0.4);
+        g.lineStyle(isLast ? 2 : 0, 0x00bcd4, isLast ? 0.9 : 0);
+        g.drawPolygon(hr.hexPoints(pos.x, pos.y, this.hexSize));
+        g.endFill();
+        apLeft -= cost;
+      } else {
+        // Beyond current AP — dimmer
+        g.beginFill(0x00bcd4, 0.15);
+        g.lineStyle(isLast ? 2 : 0, 0x00bcd4, isLast ? 0.6 : 0);
+        g.drawPolygon(hr.hexPoints(pos.x, pos.y, this.hexSize));
+        g.endFill();
+      }
+    }
+
+    this._pathGraphics = g;
+    this.layers.decoration.addChild(g);
+  }
+
+  /** Clear path highlight */
+  clearPath() {
+    if (this._pathGraphics) {
+      this._pathGraphics.destroy();
+      this._pathGraphics = null;
+    }
   }
   destroy() {
     this.layers.destroy();

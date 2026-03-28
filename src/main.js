@@ -206,6 +206,11 @@ async function startFromSave(savedState, saveSystem) {
     gameLoop._permanentlyRevealed = new Set(savedState.permanentlyRevealed);
   }
 
+  // Restore path target
+  if (savedState.pathTarget) {
+    gameLoop._pathTarget = savedState.pathTarget;
+  }
+
   gameLoop.start();
 
   _wireGameEvents(saveSystem);

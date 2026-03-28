@@ -359,7 +359,7 @@ export class MapGenerator {
 
     // Place other buildings with adjusted counts
     // Camp and city get extra placements for increased density
-    const otherBuildings = ['lighthouse', 'camp', 'camp', 'city', 'city', 'ruin', 'cave', 'mine', 'monster_camp', 'church', 'watchtower', 'training_ground', 'altar', 'spring', 'wishing_well', 'phone_booth', 'food_truck', 'bonfire', 'colossus_hand', 'vending_machine'];
+    const otherBuildings = ['lighthouse', 'camp', 'camp', 'city', 'city', 'castle', 'ruin', 'cave', 'mine', 'monster_camp', 'church', 'watchtower', 'training_ground', 'altar', 'spring', 'wishing_well', 'phone_booth', 'food_truck', 'bonfire', 'colossus_hand', 'vending_machine'];
     // Scale building count with map size — aim for ~8% coverage
     const buildingCount = Math.max(8, Math.floor((this.width * this.height) / 80));
 
@@ -851,6 +851,7 @@ export class MapGenerator {
       'watchtower_event', 'reef_event', 'training_event', 'altar_event', 'wishing_well_event',
       'phone_booth_event', 'food_truck_event', 'bonfire_event', 'hollow_tree_event',
       'colossus_hand_event', 'vending_machine_event', 'village_event', 'city_market',
+      'castle_event',
       'thief_city_arrest', 'sheriff_city_bonus', 'accordion_party', 'campfire_party',
       'mystery_egg_hatch', 'tutorial'];
     for (const [eventId, def] of Object.entries(events)) {

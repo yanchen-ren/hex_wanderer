@@ -12,11 +12,13 @@
     .subtitle { font-size: 12px; color: #888; margin-bottom: 16px; }
     .section { background: #16213e; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
     .section h2 { font-size: 14px; color: #4fc3f7; margin-bottom: 8px; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
-    .item-btn { padding: 6px 8px; border-radius: 6px; border: 1px solid #333; background: #2a2a4a; color: #ccc; font-size: 11px; cursor: pointer; text-align: left; transition: all 0.15s; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; }
+    .item-btn { padding: 6px 8px; border-radius: 6px; border: 1px solid #333; background: #2a2a4a; color: #ccc; font-size: 11px; cursor: pointer; text-align: left; transition: all 0.15s; display: flex; align-items: center; gap: 6px; }
     .item-btn:hover { background: #3a3a6a; border-color: #4fc3f7; }
     .item-btn.owned { background: #1b4332; border-color: #2d6a4f; color: #a7f3d0; }
     .item-btn .quality { font-size: 9px; opacity: 0.7; }
+    .item-btn img { width: 32px; height: 32px; object-fit: contain; flex-shrink: 0; }
+    .item-btn .item-info { flex: 1; min-width: 0; }
     .stat-row { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
     .stat { background: #2a2a4a; padding: 4px 10px; border-radius: 4px; font-size: 12px; }
     .stat span { color: #4fc3f7; font-weight: bold; }
@@ -121,8 +123,10 @@
       document.getElementById('inv-count').textContent = items.length;
       inv.innerHTML = items.map(item => {
         const color = qualityColors[item.quality] || '#888';
+        const def = itemConfig.items[item.itemId];
+        const sprite = def?.sprite ? `<img src="../${def.sprite}" onerror="this.style.display='none'">` : '';
         return `<div class="item-btn owned" onclick="removeItem('${item.itemId}')" style="border-left:3px solid ${color}">
-          ${item.name}<br><span class="quality">${item.quality} ${item.enabled ? '✅' : '❌'}</span>
+          ${sprite}<div class="item-info">${item.name}<br><span class="quality">${item.quality} ${item.enabled ? '✅' : '❌'}</span></div>
         </div>`;
       }).join('');
 
@@ -133,8 +137,9 @@
         const owned = itemSystem.hasItem(id);
         const color = qualityColors[def.quality] || '#888';
         const cls = owned ? 'item-btn owned' : 'item-btn';
+        const sprite = def.sprite ? `<img src="../${def.sprite}" onerror="this.style.display='none'">` : '';
         return `<div class="${cls}" onclick="addItem('${id}')" style="border-left:3px solid ${color}">
-          ${def.name}<br><span class="quality">${def.quality}${def.consumable ? ' 🔥' : ''}</span>
+          ${sprite}<div class="item-info">${def.name}<br><span class="quality">${def.quality}${def.consumable ? ' 🔥' : ''}</span></div>
         </div>`;
       }).join('');
 

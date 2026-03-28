@@ -1097,7 +1097,23 @@
           "text": "安心入睡",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "hp_change", "value": 10, "message": "你在舒适的床上睡了个好觉，恢复了精力" } }
+            { "probability": 1.0, "result": { "type": "hp_change", "value": 30, "message": "你在舒适的床上睡了个好觉，恢复了大量精力。+30 HP" } }
+          ]
+        }
+      ]
+    },
+    "overnight_castle_rest": {
+      "type": "choice",
+      "allowedTerrains": ["any"],
+      "title": "城堡安睡",
+      "description": "城堡的客房宽敞而温暖，壁炉中的火焰噼啪作响，你度过了一个安稳的夜晚。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "安心入睡",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "hp_change", "value": 30, "message": "你在城堡的豪华客房中睡了个好觉，恢复了大量精力。+30 HP" } }
           ]
         }
       ]
@@ -1638,7 +1654,7 @@
           "text": "点亮灯塔",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "reveal_map", "radius": 5, "message": "灯塔的光芒照亮了周围的区域，迷雾被永久驱散！" } }
+            { "probability": 1.0, "result": { "type": "reveal_map", "radius": 5, "permanent": true, "message": "灯塔的光芒照亮了周围的区域，迷雾被永久驱散！" } }
           ]
         },
         {
@@ -1714,9 +1730,9 @@
           "text": "登上瞭望塔（消耗1 AP）",
           "conditions": [],
           "outcomes": [
-            { "probability": 0.70, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -1 }, { "type": "reveal_map", "radius": 5 }], "message": "你登上了瞭望塔顶端，周围的迷雾被永久驱散！" } },
-            { "probability": 0.20, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -1 }, { "type": "reveal_map", "radius": 5 }, { "type": "gold_change", "value": 15 }], "message": "你登上了瞭望塔，揭开了迷雾！还在塔顶发现了一些金币。" } },
-            { "probability": 0.10, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -1 }, { "type": "reveal_map", "radius": 5 }, { "type": "item_reward", "itemPool": ["telescope", "tent", "antidote"] }], "message": "你登上了瞭望塔，揭开了迷雾！还在塔顶的箱子里发现了物品！" } }
+            { "probability": 0.70, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -1 }, { "type": "reveal_map", "radius": 5, "permanent": true }], "message": "你登上了瞭望塔顶端，周围的迷雾被永久驱散！" } },
+            { "probability": 0.20, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -1 }, { "type": "reveal_map", "radius": 5, "permanent": true }, { "type": "gold_change", "value": 15 }], "message": "你登上了瞭望塔，揭开了迷雾！还在塔顶发现了一些金币。" } },
+            { "probability": 0.10, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -1 }, { "type": "reveal_map", "radius": 5, "permanent": true }, { "type": "item_reward", "itemPool": ["telescope", "tent", "antidote"] }], "message": "你登上了瞭望塔，揭开了迷雾！还在塔顶的箱子里发现了物品！" } }
           ]
         },
         {
@@ -1789,6 +1805,43 @@
           "conditions": [],
           "outcomes": [
             { "probability": 1.0, "result": { "type": "ap_max_change", "value": 1, "message": "经过敏捷性训练，你的行动力得到了提升！AP上限永久+1" } }
+          ]
+        },
+        {
+          "text": "离开",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "castle_event": {
+      "type": "choice",
+      "allowedTerrains": ["any"],
+      "title": "城堡",
+      "description": "你踏入了一座雄伟的城堡，大厅中央的壁炉燃烧着温暖的火焰。城堡的主人是一位退隐的老骑士，他愿意传授你一项技能。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "修炼体魄（HP上限+10）",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "hp_max_change", "value": 10, "message": "老骑士指导你进行了严格的体能训练，你的身体更加强壮了！HP上限永久+10" } }
+          ]
+        },
+        {
+          "text": "修炼敏捷（AP上限+1）",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "ap_max_change", "value": 1, "message": "老骑士教你如何更高效地行动，你的步伐变得更加轻盈！AP上限永久+1" } }
+          ]
+        },
+        {
+          "text": "修炼感知（视野永久+1）",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "vision_permanent", "value": 1, "message": "老骑士教你如何感知周围的环境，你的视野变得更加敏锐！视野永久+1" } }
           ]
         },
         {
@@ -1993,7 +2046,7 @@
           "outcomes": [
             { "probability": 0.4, "result": { "type": "hp_change", "value": 5, "message": "你在树洞入口处发现了一窝松果和干果，吃掉后恢复了一些体力。+5 HP" } },
             { "probability": 0.3, "result": { "type": "ap_change", "value": 1, "message": "你在树洞里找到了一些蜂蜜，甜蜜的味道让你精神一振。+1 AP" } },
-            { "probability": 0.2, "result": { "type": "item_reward", "itemPool": ["antidote", "dried_fruit"], "message": "你在树洞深处发现了一件物品！" } },
+            { "probability": 0.2, "result": { "type": "item_reward", "itemPool": ["antidote", "tent"], "message": "你在树洞深处发现了一件物品！" } },
             { "probability": 0.1, "result": { "type": "teleport_random", "message": "你搜索时不小心踩空，掉进了树根下的暗道！当你爬出来时已经到了别的地方……" } }
           ]
         },
@@ -3174,6 +3227,57 @@
         }
       ]
     },
+    "red_white_ball": {
+      "type": "choice",
+      "allowedTerrains": ["any_land"],
+      "title": "红白球",
+      "description": "草丛中有一个红白相间的球，静静地躺在那里。它的表面光滑如新，中间有一个按钮似的圆形凸起。要戳一下吗？",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "戳一下",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.55, "result": { "type": "nothing", "message": "球弹开了，里面空空如也。看来已经被人用过了。" } },
+            { "probability": 0.30, "result": { "type": "item_reward", "itemPool": ["antidote", "tent", "leather_shoes", "rope_claw"], "message": "球打开了！里面装着一件物品！" } },
+            { "probability": 0.10, "result": { "type": "gold_change", "value": 20, "message": "球打开了，里面塞着一些金币！+20 金币" } },
+            { "probability": 0.05, "result": { "type": "item_reward", "itemPool": ["hunting_dog"], "message": "球打开了，一道白光闪过——一只忠诚的猎犬出现在你面前！🐕" } }
+          ]
+        },
+        {
+          "text": "不碰，走开",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing", "message": "你绕开了那个奇怪的球，继续赶路。" } }
+          ]
+        }
+      ]
+    },
+    "fox_gratitude": {
+      "type": "choice",
+      "allowedTerrains": ["any_land"],
+      "title": "神秘来客",
+      "description": "一个穿着白色斗篷的人拦住了你，眼神中带着期待：「请问……你有没有在雪山上救过一只狐狸？」",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "「你是那只狐狸？」",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.25, "result": { "type": "gold_change", "value": 30, "message": "对方眼眶泛红：「没错，我就是那只狐狸。谢谢你救了我的命！」她留下了一袋金币作为报答。+30 金币" } },
+            { "probability": 0.25, "result": { "type": "item_reward", "itemPool": ["antidote", "tent", "leather_shoes"], "message": "对方感激地说：「我一直在找你！这是我的一点心意。」她递给你一件物品后消失在风中。" } },
+            { "probability": 0.5, "result": { "type": "hp_change", "value": -15, "message": "对方露出诡异的笑容：「哈哈哈，我是那只酱板鸭！🦆」说完一拳打在你脸上就跑了。-15 HP" } }
+          ]
+        },
+        {
+          "text": "「没有，你认错人了」",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing", "message": "对方失望地叹了口气：「这样啊……打扰了。」然后转身离去。" } }
+          ]
+        }
+      ]
+    },
     "lost_child": {
       "type": "choice",
       "allowedTerrains": ["any_land"],
@@ -3836,7 +3940,7 @@
           "text": "观察日食",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "vision_bonus_temp", "value": -1, "duration": 1 }, { "type": "gold_change", "value": 50 }], "message": "你凝视日食，眼前一阵模糊……但你感受到了天地间涌动的神秘力量。祭坛收益翻倍！临时视野-1（1回合），+50 金币" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "vision_set", "value": 1, "duration": 1 }, { "type": "gold_change", "value": 50 }], "message": "你凝视日食，眼前一阵模糊……但你感受到了天地间涌动的神秘力量。视野降至1（1回合），+50 金币" } }
           ]
         },
         {

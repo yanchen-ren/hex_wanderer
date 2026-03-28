@@ -50,6 +50,8 @@ export class UIManager {
 
     const buttons = [
       { id: 'btn-end-turn', label: '⏭ 结束回合', extra: 'bg-yellow-600 hover:bg-yellow-500 text-white' },
+      { id: 'btn-path-go', label: '🗺️ 出发', extra: 'bg-cyan-700 hover:bg-cyan-600 text-white hidden' },
+      { id: 'btn-path-cancel', label: '✖ 取消寻路', extra: 'bg-red-700 hover:bg-red-600 text-white hidden' },
       { id: 'btn-export', label: '💾 导出存档', extra: 'bg-gray-700 hover:bg-gray-600 text-gray-200' },
       { id: 'btn-import', label: '📂 导入存档', extra: 'bg-gray-700 hover:bg-gray-600 text-gray-200' },
       { id: 'btn-center', label: '📍 居中玩家', extra: 'bg-gray-700 hover:bg-gray-600 text-gray-200' },
@@ -97,6 +99,17 @@ export class UIManager {
     this._btnBar.querySelector('#btn-center').addEventListener('click', () => {
       if (this.dialog.isOpen) return;
       this.eventBus.emit('ui:center-player');
+    });
+
+    // Pathfinding: Go
+    this._btnBar.querySelector('#btn-path-go').addEventListener('click', () => {
+      if (this.dialog.isOpen) return;
+      this.eventBus.emit('ui:path-go');
+    });
+
+    // Pathfinding: Cancel
+    this._btnBar.querySelector('#btn-path-cancel').addEventListener('click', () => {
+      this.eventBus.emit('ui:path-cancel');
     });
 
     // File input change
@@ -235,6 +248,23 @@ export class UIManager {
   /** Update HUD state (convenience passthrough) */
   updateHUD(data) {
     this.hud.update(data);
+
+    // Show/hide pathfinding buttons based on state
+    const goBtn = this._btnBar?.querySelector('#btn-path-go');
+    const cancelBtn = this._btnBar?.querySelector('#btn-path-cancel');
+    if (goBtn && cancelBtn) {
+      if (data._hasPath && !data._autoMoving) {
+        goBtn.classList.remove('hidden');
+        goBtn.textContent = data._pathRetained ? '🗺️ 继续出发' : '🗺️ 出发';
+        cancelBtn.classList.remove('hidden');
+      } else if (data._autoMoving) {
+        goBtn.classList.add('hidden');
+        cancelBtn.classList.remove('hidden');
+      } else {
+        goBtn.classList.add('hidden');
+        cancelBtn.classList.add('hidden');
+      }
+    }
   }
 
   destroy() {

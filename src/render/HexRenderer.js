@@ -277,7 +277,7 @@ export class HexRenderer {
    */
   drawFogHex(fogG, cx, cy, state) {
     const fogSize = this.hexSize + 1;
-    const alpha = state === 'unexplored' ? 1.0 : 0.5;
+    const alpha = state === 'unexplored' ? 1.0 : state === 'explored_light' ? 0.2 : 0.5;
     fogG.beginFill(0x0f0f23, alpha);
     fogG.lineStyle(0);
     fogG.drawPolygon(this.hexPoints(cx, cy, fogSize));

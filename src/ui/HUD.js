@@ -96,7 +96,8 @@ export class HUD {
       html += `<div class="flex flex-wrap gap-1 mt-1 border-t border-gray-700 pt-1">`;
       for (const se of s.statusEffects) {
         const icon = HUD._debuffIcon(se.id);
-        html += `<span class="px-1 rounded bg-gray-700/60 text-xs" title="${se.id} (${se.duration}回合)">${icon}${se.duration}</span>`;
+        const name = HUD._debuffName(se.id);
+        html += `<span class="hud-debuff px-1 rounded bg-gray-700/60 text-xs cursor-default" data-debuff-id="${se.id}" title="${name} (${se.duration}回合)">${icon}${se.duration}</span>`;
       }
       html += `</div>`;
     }
@@ -106,11 +107,18 @@ export class HUD {
       html += `<div class="flex flex-wrap gap-1 mt-1 border-t border-gray-700 pt-1">`;
       for (const item of s.items) {
         const opacity = item.enabled ? '' : 'opacity-40 grayscale';
-        const emoji = HUD._itemEmoji(item.itemId);
-        html += `<div class="hud-item w-6 h-6 flex items-center justify-center rounded cursor-pointer
-          bg-gray-700/60 hover:bg-gray-600 text-sm ${opacity}"
-          data-item-id="${item.itemId}"
-          title="${item.name}">${emoji}</div>`;
+        if (item.sprite) {
+          html += `<div class="hud-item w-6 h-6 flex items-center justify-center rounded cursor-pointer
+            bg-gray-700/60 hover:bg-gray-600 ${opacity}"
+            data-item-id="${item.itemId}"
+            title="${item.name}"><img src="${item.sprite}" style="width:20px;height:20px;object-fit:contain;" onerror="this.parentElement.textContent='📦'"></div>`;
+        } else {
+          const emoji = HUD._itemEmoji(item.itemId);
+          html += `<div class="hud-item w-6 h-6 flex items-center justify-center rounded cursor-pointer
+            bg-gray-700/60 hover:bg-gray-600 text-sm ${opacity}"
+            data-item-id="${item.itemId}"
+            title="${item.name}">${emoji}</div>`;
+        }
       }
       html += `</div>`;
     }
@@ -124,6 +132,12 @@ export class HUD {
       el.addEventListener('click', () => {
         this.eventBus.emit('hud:item-click', { itemId: el.dataset.itemId });
       });
+    });
+
+    // Bind debuff icon → tooltip
+    this._el.querySelectorAll('.hud-debuff').forEach((el) => {
+      el.addEventListener('pointerenter', (e) => this._showDebuffTooltip(e, el.dataset.debuffId));
+      el.addEventListener('pointerleave', () => this._hideTooltip());
     });
   }
 
@@ -149,6 +163,32 @@ export class HUD {
     this._tooltipEl.classList.add('hidden');
   }
 
+  /** Show tooltip for debuff */
+  _showDebuffTooltip(e, debuffId) {
+    const se = this._state.statusEffects.find(s => s.id === debuffId);
+    if (!se) return;
+    const name = HUD._debuffName(debuffId);
+    const icon = HUD._debuffIcon(debuffId);
+    const descMap = {
+      poison: '每回合损失5%最大HP',
+      frostbite: 'AP消耗+1，每回合-3HP',
+      curse: '战斗伤害翻倍',
+      bleed: '移动时-5HP',
+      vision_override: '视野被限制',
+    };
+    const desc = descMap[debuffId] || '';
+    this._tooltipEl.innerHTML = `
+      <div class="font-bold text-red-400">${icon} ${name}</div>
+      <div class="text-gray-400 mt-0.5">${desc}</div>
+      <div class="text-gray-500 mt-0.5">剩余 ${se.duration} 回合</div>
+    `;
+    const rect = e.target.getBoundingClientRect();
+    const containerRect = this.container.getBoundingClientRect();
+    this._tooltipEl.style.left = `${rect.right - containerRect.left + 4}px`;
+    this._tooltipEl.style.top = `${rect.top - containerRect.top}px`;
+    this._tooltipEl.classList.remove('hidden');
+  }
+
   /** Update HUD state programmatically */
   update(data) {
     Object.assign(this._state, data);
@@ -172,8 +212,21 @@ export class HUD {
       frostbite: '🥶',
       curse: '💀',
       bleed: '🩸',
+      vision_override: '👁️',
     };
     return map[statusId] || '⚠️';
+  }
+
+  /** Map debuff id to Chinese name */
+  static _debuffName(statusId) {
+    const map = {
+      poison: '中毒',
+      frostbite: '冻伤',
+      curse: '诅咒',
+      bleed: '流血',
+      vision_override: '视障',
+    };
+    return map[statusId] || statusId;
   }
 
   destroy() {

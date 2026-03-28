@@ -91,8 +91,8 @@ export class TurnSystem {
       hpChange = -result.actualDamage;
     }
 
-    // City rest: clear all debuffs
-    if (tileData.building === 'city' && this._player.clearAllDebuffs) {
+    // City/Castle rest: clear all debuffs
+    if ((tileData.building === 'city' || tileData.building === 'castle') && this._player.clearAllDebuffs) {
       this._player.clearAllDebuffs();
     }
 
@@ -181,6 +181,11 @@ export class TurnSystem {
     let hpChange = restDef.hpChange ?? 0;
     const apBonus = restDef.apBonus ?? 0;
     const statusEffects = [];
+
+    // Add building rest bonus (city, camp, village etc.)
+    if (tileData?.buildingEffect) {
+      hpChange += tileData.buildingEffect.restHpBonus ?? 0;
+    }
 
     // Add item rest HP bonus (tent etc.)
     hpChange += effects.restHpBonus ?? 0;
@@ -325,6 +330,11 @@ export class TurnSystem {
         return 'overnight_camp_trade';
       }
       return null;
+    }
+
+    if (building === 'castle') {
+      // Castle: same rest as city but no trade/thief events
+      return 'overnight_castle_rest';
     }
 
     return null;

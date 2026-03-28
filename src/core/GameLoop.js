@@ -6,8 +6,9 @@
  * Uses OFFSET coordinates (col, row) throughout.
  */
 import { HexRenderer } from '../render/HexRenderer.js';
+import { PathfindingSystem } from '../systems/PathfindingSystem.js';
 
-const STATES = { INIT: 'INIT', PLAYING: 'PLAYING', EVENT_DIALOG: 'EVENT_DIALOG', GAME_OVER: 'GAME_OVER', VICTORY: 'VICTORY' };
+const STATES = { INIT: 'INIT', PLAYING: 'PLAYING', EVENT_DIALOG: 'EVENT_DIALOG', AUTO_MOVING: 'AUTO_MOVING', GAME_OVER: 'GAME_OVER', VICTORY: 'VICTORY' };
 
 export class GameLoop {
   /**
@@ -56,10 +57,21 @@ export class GameLoop {
 
     /** Track building events triggered this turn to prevent re-trigger: Set of "col,row" */
     this._buildingEventsTriggeredThisTurn = new Set();
+
+    /** Pathfinding state */
+    this._pathfindingSystem = null; // initialized in start()
+    this._currentPath = null;       // { path: [{q,r}], stepCosts: number[], totalAP: number }
+    this._pathTarget = null;        // {q, r} — target for cross-turn path retention
+    this._autoMoving = false;       // true while auto-move is executing
+    this._autoMoveCancelled = false; // flag to stop auto-move loop
   }
 
   /** Start the game loop — wire events and transition to PLAYING */
   start() {
+    this._pathfindingSystem = new PathfindingSystem(
+      this.movementSystem, this.fogSystem, this.itemSystem, this.mapData
+    );
+
     this._wireEvents();
     this._initFog();
     this._syncRender();
@@ -80,8 +92,10 @@ export class GameLoop {
     eb.off('ui:request-save');
     eb.off('ui:import-save');
     eb.off('hud:item-click');
+    eb.off('ui:path-go');
+    eb.off('ui:path-cancel');
 
-    // Hex click → select / move
+    // Hex click → select / move / pathfind
     eb.on('hex:click', (data) => this._onHexClick(data));
 
     // UI buttons
@@ -89,6 +103,31 @@ export class GameLoop {
     eb.on('ui:center-player', () => this._centerOnPlayer());
     eb.on('ui:request-save', (cb) => this._onExportSave(cb));
     eb.on('ui:import-save', (data) => this._onImportSave(data));
+
+    // Pathfinding buttons
+    eb.on('ui:path-go', () => {
+      if (this._currentPath && this.state === STATES.PLAYING) {
+        this._startAutoMove();
+      }
+    });
+    eb.on('ui:path-cancel', () => {
+      this._autoMoveCancelled = true;
+      this._clearPathState();
+      if (this.state === STATES.AUTO_MOVING) this.state = STATES.PLAYING;
+      this._updateHUD();
+    });
+
+    // ESC key → clear path
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        if (this._autoMoving) {
+          this._autoMoveCancelled = true;
+        } else if (this._currentPath || this._pathTarget) {
+          this._clearPathState();
+          this._updateHUD();
+        }
+      }
+    });
 
     // Item toggle from HUD
     eb.on('hud:item-click', ({ itemId }) => {
@@ -101,6 +140,11 @@ export class GameLoop {
   // ── Hex click handler ───────────────────────────────────────
 
   _onHexClick({ col, row }) {
+    if (this.state === STATES.AUTO_MOVING) {
+      // Cancel auto-move on any click
+      this._autoMoveCancelled = true;
+      return;
+    }
     if (this.state !== STATES.PLAYING) return;
 
     const tile = this.mapData.getTile(col, row);
@@ -113,39 +157,76 @@ export class GameLoop {
     const pCol = this.playerState.position.q;
     const pRow = this.playerState.position.r;
 
-    // Check if this tile is adjacent to the player
-    const isAdj = this._isAdjacent(pCol, pRow, col, row);
-
-    // If clicking the already-selected adjacent tile → move
-    if (this._selectedTile && this._selectedTile.col === col && this._selectedTile.row === row && isAdj) {
-      this._tryMove(col, row);
+    // Click on self → clear path
+    if (col === pCol && row === pRow) {
+      this._clearPathState();
+      this.renderEngine.clearHighlight();
+      this._selectedTile = null;
       return;
     }
 
-    // Otherwise select the tile and show info
-    this._selectedTile = { col, row };
-    this.renderEngine.highlightTile(col, row);
+    // Check if this tile is adjacent to the player
+    const isAdj = this._isAdjacent(pCol, pRow, col, row);
 
-    // Show tile info via toast
-    const info = this.renderEngine.showTileInfo(col, row);
-    if (info) {
+    // Adjacent tile: double-click to move (existing behavior)
+    if (isAdj) {
+      if (this._selectedTile && this._selectedTile.col === col && this._selectedTile.row === row) {
+        this._clearPathState();
+        this._tryMove(col, row);
+        return;
+      }
+      this._clearPathState();
+      this._selectedTile = { col, row };
+      this.renderEngine.highlightTile(col, row);
+      const fromTile = this._getPlayerTileData();
+      const toTile = this._getTileData(col, row);
+      const check = this.movementSystem.canMoveTo(fromTile, toTile);
       let msg = `(${col},${row}) ${tile.terrain} 海拔${tile.elevation}`;
       if (tile.building) msg += ` 🏗️${tile.building}`;
       if (tile.event && vis === 'visible') msg += ` ❓事件`;
-      if (isAdj) {
-        // Show AP cost
-        const fromTile = this._getPlayerTileData();
-        const toTile = this._getTileData(col, row);
-        const check = this.movementSystem.canMoveTo(fromTile, toTile);
-        if (check.allowed) {
-          const cost = this.movementSystem.calculateAPCost(fromTile, toTile);
-          msg += ` | AP消耗: ${cost} 👆再次点击移动`;
-        } else {
-          msg += ` | ❌${check.reason}`;
-        }
+      if (check.allowed) {
+        const cost = this.movementSystem.calculateAPCost(fromTile, toTile);
+        msg += ` | AP消耗: ${cost} 👆再次点击移动`;
+      } else {
+        msg += ` | ❌${check.reason}`;
       }
       this.eventBus.emit('ui:toast', msg);
+      return;
     }
+
+    // Non-adjacent tile: pathfinding
+    if (!this._pathfindingSystem) return;
+
+    // Double-click same remote tile → start auto-move
+    if (this._pathTarget && this._pathTarget.q === col && this._pathTarget.r === row && this._currentPath) {
+      this._startAutoMove();
+      return;
+    }
+
+    // Calculate path
+    const result = this._pathfindingSystem.findPath(
+      { q: pCol, r: pRow }, { q: col, r: row }
+    );
+
+    if (!result.found) {
+      this.eventBus.emit('ui:toast', `❌ ${result.reason}`);
+      this._clearPathState();
+      return;
+    }
+
+    // Store path and render
+    this._currentPath = { path: result.path, stepCosts: result.stepCosts, totalAP: result.totalAP };
+    this._pathTarget = { q: col, r: row };
+    this._selectedTile = { col, row };
+
+    this.renderEngine.clearHighlight();
+    this.renderEngine.renderPath(result.path, result.stepCosts, this.playerState.ap);
+
+    const reachable = this._pathfindingSystem.getReachableIndex(result.stepCosts, this.playerState.ap);
+    const reachableSteps = reachable + 1;
+    this.eventBus.emit('ui:toast',
+      `🗺️ 路径: ${result.path.length} 步 | 总 AP: ${result.totalAP.toFixed(1)} | 本回合可走: ${reachableSteps} 步 👆再次点击出发`
+    );
   }
 
   // ── Movement ────────────────────────────────────────────────
@@ -191,7 +272,7 @@ export class GameLoop {
     // Check death after move damage
     if (this.playerState.hp <= 0) {
       await this._onDeath();
-      return;
+      if (this.state !== STATES.PLAYING) return;
     }
 
     // Update fog using offset-based BFS
@@ -230,13 +311,7 @@ export class GameLoop {
     // Check death after events
     if (this.playerState.hp <= 0) {
       await this._onDeath();
-      return;
-    }
-
-    // Auto end turn if AP depleted
-    if (this.playerState.ap <= 0) {
-      await this._onEndTurn();
-      return;
+      if (this.state !== STATES.PLAYING) return;
     }
 
     this._updateHUD();
@@ -468,6 +543,8 @@ export class GameLoop {
 
     this.state = STATES.EVENT_DIALOG;
 
+    try {
+
     const def = eventInstance.definition;
     const choices = eventInstance.availableChoices.map(c => ({ text: c.text }));
 
@@ -572,7 +649,7 @@ export class GameLoop {
     // Check death after event
     if (this.playerState.hp <= 0) {
       await this._onDeath();
-      return;
+      if (this.state !== STATES.PLAYING) return;
     }
 
     // After teleport: check events/buildings at destination
@@ -590,6 +667,16 @@ export class GameLoop {
           if (this.state !== STATES.PLAYING) return;
         }
       }
+    }
+
+    } catch (err) {
+      console.error('Event handling error:', err);
+      // Ensure state is restored so game doesn't freeze
+      if (this.uiManager.dialog.isOpen) {
+        this.uiManager.dialog._close();
+      }
+      this.state = STATES.PLAYING;
+      this._updateHUD();
     }
   }
 
@@ -613,9 +700,10 @@ export class GameLoop {
 
     if (choiceIdx === 0) {
       if (this.itemSystem.addItem(itemId)) {
+        const spriteHtml = def?.sprite ? `<img src="${def.sprite}" style="width:48px;height:48px;object-fit:contain;margin:8px auto;display:block;">` : '';
         await this.uiManager.dialog.showResult({
-          message: `获得了 ${itemName}！`,
-          effects: [`🎁 ${itemName}: ${def?.description || ''}`],
+          message: `${spriteHtml}获得了 ${itemName}！`,
+          effects: [`${def?.description || ''}`],
         });
 
         // Check combinations
@@ -634,9 +722,14 @@ export class GameLoop {
           });
         }
       } else {
+        // Already owned or blocked — convert to gold
+        const qualityPrices = { common: 10, uncommon: 20, rare: 40, epic: 80, legendary: 150 };
+        const quality = def?.quality ?? 'common';
+        const gold = Math.floor((qualityPrices[quality] ?? 10) * 0.5);
+        this.playerState.gold += gold;
         await this.uiManager.dialog.showResult({
-          message: `你已经拥有 ${itemName} 了`,
-          effects: [],
+          message: `你已经拥有 ${itemName}，折算为金币`,
+          effects: [`🪙 +${gold} 金币`],
         });
       }
     }
@@ -681,16 +774,20 @@ export class GameLoop {
 
     if (outcome.type === 'ap_change') {
       const val = outcome.value ?? 0;
+      // Track overnight AP penalty separately (AP is already 0 during overnight)
+      if (val < 0 && this.playerState._overnightApPenalty !== undefined) {
+        this.playerState._overnightApPenalty += Math.abs(val);
+      }
       this.playerState.ap = Math.max(0, this.playerState.ap + val);
       effects.push(`⚡ AP ${val > 0 ? '+' : ''}${val}`);
     }
 
     if (outcome.type === 'item_reward') {
       const pool = outcome.itemPool || [];
+      let acquired = false;
       for (const itemId of pool) {
         if (this.itemSystem.addItem(itemId)) {
-          const def = this.configs.item?.items?.[itemId];
-          effects.push(`🎁 获得: ${def?.name || itemId}`);
+          effects.push(this._itemEffectMsg(itemId));
 
           // Check combinations after adding item
           const combo = this.itemSystem.checkCombinations();
@@ -702,8 +799,19 @@ export class GameLoop {
             this._pendingCombination = combo;
           }
 
+          acquired = true;
           break; // Only give one item per reward
         }
+      }
+      // All items already owned or blocked — convert to gold (50% of quality price)
+      if (!acquired && pool.length > 0) {
+        const qualityPrices = { common: 10, uncommon: 20, rare: 40, epic: 80, legendary: 150 };
+        const itemId = pool[Math.floor(Math.random() * pool.length)];
+        const def = this.configs.item?.items?.[itemId];
+        const quality = def?.quality ?? 'common';
+        const gold = Math.floor((qualityPrices[quality] ?? 10) * 0.5);
+        this.playerState.gold += gold;
+        effects.push(`🪙 已拥有该道具，折算为 ${gold} 金币`);
       }
     }
 
@@ -733,7 +841,7 @@ export class GameLoop {
       const radius = outcome.radius || 5;
       const pCol = this.playerState.position.q;
       const pRow = this.playerState.position.r;
-      this._revealArea(pCol, pRow, radius, outcome.permanent !== false);
+      this._revealArea(pCol, pRow, radius, outcome.permanent === true);
       this.renderEngine.updateFogLayer();
       effects.push(`🗺️ 揭开了周围${radius}格的迷雾`);
     }
@@ -830,6 +938,23 @@ export class GameLoop {
       effects.push(`👁️ 永久视野 +${val}`);
     }
 
+    if (outcome.type === 'vision_set') {
+      // Temporarily override vision to a fixed value for N turns
+      const val = outcome.value ?? 1;
+      const duration = outcome.duration ?? 1;
+      this.playerState.addStatusEffect({
+        id: 'vision_override',
+        duration,
+        effect: { visionOverride: val },
+      });
+      // Refresh fog immediately
+      const vpCol = this.playerState.position.q;
+      const vpRow = this.playerState.position.r;
+      this._updateFogOffset(vpCol, vpRow);
+      this.renderEngine.updateFogLayer();
+      effects.push(`👁️ 视野降至 ${val}（${duration}回合）`);
+    }
+
     if (outcome.type === 'reset_combat_events') {
       let resetCount = 0;
       const allTiles = this.mapData.getAllTiles();
@@ -890,15 +1015,28 @@ export class GameLoop {
     if (outcome.type === 'trade') {
       const cost = outcome.goldCost ?? 0;
       const itemPool = outcome.itemPool ?? [];
-      // Filter out items player already has
-      const available = itemPool.filter(id => !this.itemSystem.hasItem(id));
+      // Filter out items player already has or can't acquire
+      const available = itemPool.filter(id => this.itemSystem.canAcquire(id));
       if (this.playerState.gold >= cost && available.length > 0) {
         this.playerState.gold -= cost;
         const itemId = available[Math.floor(Math.random() * available.length)];
         if (this.itemSystem.addItem(itemId)) {
-          const def = this.configs.item?.items?.[itemId];
           effects.push(`🪙 -${cost} 金币`);
-          effects.push(`🎁 获得: ${def?.name || itemId}`);
+          effects.push(this._itemEffectMsg(itemId));
+
+          // Check combinations after trade
+          const combo = this.itemSystem.checkCombinations();
+          if (combo.combined) {
+            const resultDef = this.configs.item?.items?.[combo.result];
+            const matADef = this.configs.item?.items?.[combo.consumed[0]];
+            const matBDef = this.configs.item?.items?.[combo.consumed[1]];
+            effects.push(`🔀 ${matADef?.name || combo.consumed[0]} + ${matBDef?.name || combo.consumed[1]} → ${resultDef?.name || combo.result}`);
+            this._pendingCombination = combo;
+          }
+        } else {
+          // addItem failed (shouldn't happen since canAcquire passed, but safety)
+          effects.push(`🪙 交易失败，金币已退还`);
+          this.playerState.gold += cost;
         }
       } else if (this.playerState.gold >= cost && available.length === 0) {
         // All items already owned — give gold bonus instead
@@ -952,7 +1090,7 @@ export class GameLoop {
         const validQualities = qualityOrder.slice(minIdx, maxIdx + 1);
         const candidates = allItems.filter(([id, def]) =>
           validQualities.includes(def.quality ?? 'common') &&
-          !this.itemSystem.hasItem(id) &&
+          this.itemSystem.canAcquire(id) &&
           id !== giveItem.itemId &&
           def.quality !== 'legendary' &&
           !def.combination
@@ -960,7 +1098,7 @@ export class GameLoop {
         if (candidates.length > 0) {
           const [receiveId, receiveDef] = candidates[Math.floor(Math.random() * candidates.length)];
           this.itemSystem.addItem(receiveId);
-          effects.push(`🎁 获得: ${receiveDef?.name || receiveId}`);
+          effects.push(this._itemEffectMsg(receiveId));
         } else {
           // No suitable item to give — compensate with gold
           const qualityRewards = { common: 15, uncommon: 30, rare: 60, epic: 120 };
@@ -986,26 +1124,29 @@ export class GameLoop {
     const tile = this.mapData.getTile(pCol, pRow);
     const tileData = tile ? { terrain: tile.terrain, elevation: tile.elevation, building: tile.building } : { terrain: 'grass', elevation: 5 };
 
-    // End turn: rest effect + overnight events
-    const endResult = this.turnSystem.endTurn(tileData);
+    // Attach building effect for rest bonus calculation
+    if (tileData.building) {
+      const bDef = this.buildingSystem.getBuildingDef(tileData.building);
+      if (bDef?.effect) {
+        tileData.buildingEffect = bDef.effect;
+      }
+    }
 
-    // Show rest effect
-    const restMsgs = [];
-    if (endResult.hpChange !== 0) {
-      restMsgs.push(`${endResult.hpChange > 0 ? '❤️' : '💔'} HP ${endResult.hpChange > 0 ? '+' : ''}${endResult.hpChange}`);
-    }
-    if (endResult.debuffDamage > 0) {
-      restMsgs.push(`☠️ 状态伤害 -${endResult.debuffDamage}`);
-    }
+    // Snapshot HP before all overnight effects
+    const hpBefore = this.playerState.hp;
+
+    // End turn: rest effect (terrain + building + item bonuses)
+    const endResult = this.turnSystem.endTurn(tileData);
 
     // Check death after rest
     if (this.playerState.hp <= 0) {
       await this._onDeath();
-      return;
+      if (this.state !== STATES.PLAYING) return;
+      // Player survived via lethal save — continue with overnight
     }
 
-    // Overnight events — track AP changes to apply after AP restore
-    const apBeforeOvernight = this.playerState.ap;
+    // Overnight events — track AP penalty
+    this.playerState._overnightApPenalty = 0;
     const overnightEventIds = this.turnSystem._rollOvernightEvents ? this.turnSystem._rollOvernightEvents(tileData) : [];
     for (const evtId of overnightEventIds) {
       const overnightTile = { ...tileData, event: evtId, _isOvernightEvent: true };
@@ -1013,10 +1154,16 @@ export class GameLoop {
       if (this.state !== STATES.PLAYING) return;
       if (this.playerState.hp <= 0) {
         await this._onDeath();
-        return;
+        if (this.state !== STATES.PLAYING) return;
+        // Player survived via lethal save — continue
       }
     }
-    const overnightApLoss = apBeforeOvernight - this.playerState.ap;
+    const overnightApLoss = this.playerState._overnightApPenalty;
+    delete this.playerState._overnightApPenalty;
+
+    // Snapshot HP after all overnight effects (before new turn AP restore)
+    const hpAfter = this.playerState.hp;
+    const totalHpChange = hpAfter - hpBefore;
 
     // Start new turn
     const turnResult = this.turnSystem.startNewTurn();
@@ -1026,6 +1173,21 @@ export class GameLoop {
     if (overnightApLoss > 0) {
       this.playerState.ap = Math.max(0, this.playerState.ap - overnightApLoss);
     }
+
+    // Show overnight summary dialog
+    const summaryEffects = [];
+    if (totalHpChange > 0) {
+      summaryEffects.push(`❤️ HP +${totalHpChange}`);
+    } else if (totalHpChange < 0) {
+      summaryEffects.push(`💔 HP ${totalHpChange}`);
+    }
+    if (overnightApLoss > 0) {
+      summaryEffects.push(`⚡ AP -${overnightApLoss}`);
+    }
+    await this.uiManager.dialog.showResult({
+      message: `🌙 回合 ${turnResult.turnNumber} 开始`,
+      effects: summaryEffects.length > 0 ? summaryEffects : ['一夜无事，AP 已恢复'],
+    });
 
     // Event refresh every 30 turns
     if (this.playerState.turnNumber % 30 === 0) {
@@ -1057,11 +1219,9 @@ export class GameLoop {
       this._mysteryEggPickupTurn = null;
     }
 
-    // Show turn summary
-    if (restMsgs.length > 0) {
-      this.eventBus.emit('ui:toast', `🔄 回合 ${turnResult.turnNumber} | ${restMsgs.join(' ')}`);
-    } else {
-      this.eventBus.emit('ui:toast', `🔄 回合 ${turnResult.turnNumber} | AP 已恢复`);
+    // Recalculate retained path after overnight (items/fog may have changed)
+    if (this._pathTarget) {
+      this._recalcAndShowPath();
     }
 
     this._updateHUD();
@@ -1102,26 +1262,42 @@ export class GameLoop {
   // ── Death ───────────────────────────────────────────────────
 
   async _onDeath() {
-    // Check lethal save items before actual death
-    // Priority: helmet (save at 1HP) > resurrection_cross (full heal)
-    if (this.itemSystem.hasItem('helmet') && this.itemSystem.isConsumable('helmet')) {
-      this.playerState.hp = 1;
-      this.itemSystem.consumeItem('helmet');
-      await this.uiManager.dialog.showResult({
-        message: '⛑️ 安全帽救了你一命！',
-        effects: ['HP 保留 1', '安全帽已损坏'],
-      });
-      this.state = STATES.PLAYING;
-      this._updateHUD();
-      return;
+    // Check lethal save items before actual death (data-driven)
+    // Priority: non-fullHeal saves first (helmet → 1HP), then fullHeal saves (cross/codex → full HP)
+    const inventory = this.itemSystem.getInventory();
+    const itemDefs = this.configs.item?.items ?? {};
+
+    // Find all items with lethal_save effect
+    const lethalSaves = [];
+    for (const item of inventory) {
+      const def = itemDefs[item.itemId];
+      if (!def?.effects) continue;
+      const save = def.effects.find(e => e.type === 'lethal_save');
+      if (save) {
+        lethalSaves.push({ itemId: item.itemId, def, save, consumable: def.consumable === true });
+      }
     }
 
-    if (this.itemSystem.hasItem('resurrection_cross') && this.itemSystem.isConsumable('resurrection_cross')) {
-      this.playerState.hp = this.playerState.hpMax;
-      this.itemSystem.consumeItem('resurrection_cross');
+    // Sort: non-fullHeal first (helmet saves at 1HP, preserving better saves for later)
+    lethalSaves.sort((a, b) => (a.save.fullHeal ? 1 : 0) - (b.save.fullHeal ? 1 : 0));
+
+    for (const ls of lethalSaves) {
+      this._lethalSaveTriggered = true;
+      if (ls.save.fullHeal) {
+        this.playerState.hp = this.playerState.hpMax;
+      } else {
+        this.playerState.hp = 1;
+      }
+      if (ls.consumable) {
+        this.itemSystem.consumeItem(ls.itemId);
+      }
+      const emoji = ls.save.fullHeal ? '✝️' : '⛑️';
       await this.uiManager.dialog.showResult({
-        message: '✝️ 重生十字架发出耀眼的光芒！',
-        effects: ['HP 完全恢复', '重生十字架已消耗'],
+        message: `${emoji} ${ls.def.name}救了你一命！`,
+        effects: [
+          ls.save.fullHeal ? 'HP 完全恢复' : 'HP 保留 1',
+          ls.consumable ? `${ls.def.name}已消耗` : '',
+        ].filter(Boolean),
       });
       this.state = STATES.PLAYING;
       this._updateHUD();
@@ -1175,6 +1351,7 @@ export class GameLoop {
       map: this.mapData.toJSON(),
       fog: this.fogSystem.toJSON(),
       permanentlyRevealed: this._permanentlyRevealed ? [...this._permanentlyRevealed] : [],
+      pathTarget: this._pathTarget ?? null,
     };
   }
 
@@ -1252,6 +1429,15 @@ export class GameLoop {
       vp += effects.visionBonus ?? 0;
     }
 
+    // Permanent vision bonus
+    vp += this.playerState._permanentVisionBonus ?? 0;
+
+    // Vision override (e.g. eclipse sets vision to 1)
+    const visionOverride = this.playerState.getStatusEffect('vision_override');
+    if (visionOverride && visionOverride.effect?.visionOverride != null) {
+      vp = visionOverride.effect.visionOverride;
+    }
+
     const visited = new Map();
     const result = [];
     visited.set(`${col},${row}`, vp);
@@ -1324,6 +1510,149 @@ export class GameLoop {
     }
 
     return result;
+  }
+
+  // ── Pathfinding & Auto-move ──────────────────────────────
+
+  /** Clear all pathfinding state and visuals */
+  _clearPathState() {
+    this._currentPath = null;
+    this._pathTarget = null;
+    this._autoMoving = false;
+    this._autoMoveCancelled = false;
+    this.renderEngine.clearPath();
+  }
+
+  /** Start auto-move along the current path */
+  async _startAutoMove() {
+    if (!this._currentPath || this._currentPath.path.length === 0) return;
+    this._autoMoving = true;
+    this._autoMoveCancelled = false;
+    this.state = STATES.AUTO_MOVING;
+
+    await this._autoMoveLoop();
+  }
+
+  /** Auto-move loop: step through path one tile at a time */
+  async _autoMoveLoop() {
+    while (this._currentPath && this._currentPath.path.length > 0) {
+      if (this._autoMoveCancelled) {
+        this._clearPathState();
+        this.state = STATES.PLAYING;
+        this._updateHUD();
+        return;
+      }
+
+      const nextStep = this._currentPath.path[0];
+
+      // Check AP
+      const fromTile = this._getPlayerTileData();
+      const toTile = this._getTileData(nextStep.q, nextStep.r);
+      if (!toTile) { this._clearPathState(); break; }
+
+      const check = this.movementSystem.canMoveTo(fromTile, toTile);
+      if (!check.allowed) {
+        // AP exhausted or path blocked — stop, keep target for next turn
+        this._currentPath = null;
+        this._autoMoving = false;
+        this.state = STATES.PLAYING;
+        this.renderEngine.clearPath();
+        // Re-render path from current position if target still valid
+        if (this._pathTarget) {
+          this._recalcAndShowPath();
+        }
+        this._updateHUD();
+        return;
+      }
+
+      // Execute one step
+      const posBefore = { q: this.playerState.position.q, r: this.playerState.position.r };
+      this.state = STATES.PLAYING; // _tryMove needs PLAYING state
+      await this._tryMove(nextStep.q, nextStep.r);
+
+      // Check if player was teleported (position doesn't match expected)
+      const posAfter = this.playerState.position;
+      if (posAfter.q !== nextStep.q || posAfter.r !== nextStep.r) {
+        this._clearPathState();
+        this.state = STATES.PLAYING;
+        this._updateHUD();
+        return;
+      }
+
+      // Check death or lethal save
+      if (this.state === STATES.GAME_OVER || this.state === STATES.VICTORY) return;
+      if (this.playerState.hp <= 0) {
+        this._clearPathState();
+        return;
+      }
+      // Lethal save triggered — stop but keep path target
+      if (this._lethalSaveTriggered) {
+        this._lethalSaveTriggered = false;
+        this._currentPath = null;
+        this._autoMoving = false;
+        this.state = STATES.PLAYING;
+        this.renderEngine.clearPath();
+        if (this._pathTarget) this._recalcAndShowPath();
+        this._updateHUD();
+        return;
+      }
+
+      // Advance path
+      this._currentPath.path.shift();
+      this._currentPath.stepCosts.shift();
+
+      // Recalculate path (items/fog may have changed due to events)
+      if (this._currentPath.path.length > 0 && this._pathTarget) {
+        const newResult = this._pathfindingSystem.findPath(
+          { q: posAfter.q, r: posAfter.r }, this._pathTarget
+        );
+        if (newResult.found) {
+          this._currentPath = { path: newResult.path, stepCosts: newResult.stepCosts, totalAP: newResult.totalAP };
+          this.renderEngine.renderPath(newResult.path, newResult.stepCosts, this.playerState.ap);
+        } else {
+          // Path no longer valid
+          this.eventBus.emit('ui:toast', '⚠️ 路径已失效');
+          this._clearPathState();
+          this.state = STATES.PLAYING;
+          this._updateHUD();
+          return;
+        }
+      }
+
+      // If path complete, done
+      if (!this._currentPath || this._currentPath.path.length === 0) {
+        this._clearPathState();
+        this.state = STATES.PLAYING;
+        this._updateHUD();
+        return;
+      }
+
+      // Delay between steps (only if no event dialog interrupted)
+      if (this.state !== STATES.EVENT_DIALOG) {
+        this.state = STATES.AUTO_MOVING;
+        await new Promise(r => setTimeout(r, 300));
+      }
+    }
+
+    this._autoMoving = false;
+    this.state = STATES.PLAYING;
+    this._updateHUD();
+  }
+
+  /** Recalculate and display path from current position to _pathTarget */
+  _recalcAndShowPath() {
+    if (!this._pathTarget || !this._pathfindingSystem) return;
+    const pCol = this.playerState.position.q;
+    const pRow = this.playerState.position.r;
+    const result = this._pathfindingSystem.findPath({ q: pCol, r: pRow }, this._pathTarget);
+    if (result.found) {
+      this._currentPath = { path: result.path, stepCosts: result.stepCosts, totalAP: result.totalAP };
+      this.renderEngine.renderPath(result.path, result.stepCosts, this.playerState.ap);
+    } else {
+      this._pathTarget = null;
+      this._currentPath = null;
+      this.renderEngine.clearPath();
+    }
   }
 
   /**
@@ -1410,6 +1739,17 @@ export class GameLoop {
     return this._getTileData(this.playerState.position.q, this.playerState.position.r);
   }
 
+  /** Generate item effect message with inline sprite image */
+  _itemEffectMsg(itemId, prefix = '获得') {
+    const def = this.configs.item?.items?.[itemId];
+    const name = def?.name || itemId;
+    const sprite = def?.sprite;
+    if (sprite) {
+      return `${prefix}: <img src="${sprite}" style="width:24px;height:24px;vertical-align:middle;display:inline-block;margin:0 2px;"> ${name}`;
+    }
+    return `${prefix}: ${name}`;
+  }
+
   _syncRender() {
     const pCol = this.playerState.position.q;
     const pRow = this.playerState.position.r;
@@ -1434,6 +1774,7 @@ export class GameLoop {
         description: def?.description || '',
         quality: item.quality,
         enabled: item.enabled,
+        sprite: def?.sprite || null,
       };
     });
 
@@ -1447,6 +1788,9 @@ export class GameLoop {
       gold: this.playerState.gold,
       items,
       statusEffects: this.playerState.statusEffects.map(se => ({ id: se.id, duration: se.duration })),
+      _hasPath: !!(this._currentPath || this._pathTarget),
+      _autoMoving: this._autoMoving,
+      _pathRetained: !this._currentPath && !!this._pathTarget,
     });
   }
 }

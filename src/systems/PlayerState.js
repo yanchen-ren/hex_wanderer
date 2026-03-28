@@ -175,6 +175,7 @@ export class PlayerState {
       relicsCollected: this.relicsCollected,
       gold: this.gold,
       statusEffects: this.statusEffects.map(e => ({ ...e, effect: { ...e.effect } })),
+      permanentVisionBonus: this._permanentVisionBonus ?? 0,
     };
   }
 
@@ -184,7 +185,7 @@ export class PlayerState {
    * @returns {PlayerState}
    */
   static fromJSON(data) {
-    return new PlayerState({
+    const ps = new PlayerState({
       position: data.position,
       hp: data.hp,
       hpMax: data.hpMax,
@@ -195,5 +196,7 @@ export class PlayerState {
       gold: data.gold,
       statusEffects: data.statusEffects,
     });
+    ps._permanentVisionBonus = data.permanentVisionBonus ?? 0;
+    return ps;
   }
 }

@@ -24,6 +24,8 @@ export class ItemSystem {
   addItem(itemId) {
     if (this._inventory.has(itemId)) return false;
     if (!this._itemDefs[itemId]) return false;
+    // Block non-consumable materials if their combination result is already owned
+    if (this.isItemBlocked(itemId)) return false;
     this._inventory.set(itemId, { enabled: true });
     return true;
   }
@@ -89,6 +91,39 @@ export class ItemSystem {
   }
 
   /**
+   * Check if an item is blocked from acquisition.
+   * An item is blocked if it's a non-consumable material for a combination
+   * whose result is already owned.
+   * @param {string} itemId
+   * @returns {boolean}
+   */
+  isItemBlocked(itemId) {
+    const def = this._itemDefs[itemId];
+    // Consumable items are never blocked (they have independent use)
+    if (def?.consumable) return false;
+
+    for (const recipe of (this._combinations ?? [])) {
+      if (recipe.materialA === itemId || recipe.materialB === itemId) {
+        if (this._inventory.has(recipe.result)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Check if an item can be acquired (not already owned AND not blocked by combination).
+   * @param {string} itemId
+   * @returns {boolean}
+   */
+  canAcquire(itemId) {
+    if (this._inventory.has(itemId)) return false;
+    if (this.isItemBlocked(itemId)) return false;
+    return true;
+  }
+
+  /**
    * Check if an item is consumable (reads "consumable" field from config).
    * @param {string} itemId
    * @returns {boolean}
@@ -107,6 +142,8 @@ export class ItemSystem {
     const combinations = this._combinations ?? [];
     for (const recipe of combinations) {
       const { materialA, materialB, result } = recipe;
+      // Skip if result already owned (don't waste materials)
+      if (this._inventory.has(result)) continue;
       if (this._inventory.has(materialA) && this._inventory.has(materialB)) {
         // Remove both materials
         this._inventory.delete(materialA);

@@ -116,7 +116,7 @@
       reef: '🪸', training_ground: '🏋️', altar: '🪨', spring: '💧',
       wishing_well: '🪙', phone_booth: '📞', food_truck: '🍔',
       bonfire: '🔥', hollow_tree: '🌳', colossus_hand: '✋',
-      vending_machine: '🥫', village: '🏡',
+      vending_machine: '🥫', village: '🏡', castle: '🏰',
     };
 
     let terrainConfig, buildingConfig, itemConfig, eventConfig;
@@ -598,7 +598,7 @@
       if (!markersContainer) return;
       markersContainer.removeChildren();
 
-      const markerSize = HEX_SIZE * 1.2;
+      const markerSize = HEX_SIZE * 1.6;
 
       for (let row = 0; row < height; row++) {
         for (let col = 0; col < width; col++) {
@@ -606,10 +606,8 @@
           if (!tile) continue;
 
           // Only show markers for visible tiles (if fog enabled)
-          if (fogEnabled) {
-            const vis = getFogState(col, row);
-            if (vis !== 'visible') continue;
-          }
+          const vis = fogEnabled ? getFogState(col, row) : 'visible';
+          if (vis === 'unexplored') continue;
 
           const pos = offsetToPixel(col, row, HEX_SIZE, tile.elevation);
 
@@ -631,7 +629,7 @@
             }
           }
 
-          if (tile.event) {
+          if (tile.event && !tile.building && vis === 'visible') {
             // Determine marker type
             let markerType = 'event';
             if (tile.event.startsWith('item_pickup_')) {
@@ -704,6 +702,8 @@
           if (!tile) continue;
           const vis = getFogState(col, row);
           if (vis === 'visible') continue;
+          // Skip fog on explored building tiles
+          if (vis === 'explored' && tile.building) continue;
 
           const pos = offsetToPixel(col, row, HEX_SIZE, tile.elevation);
           const alpha = vis === 'unexplored' ? 1.0 : 0.5;
@@ -756,6 +756,109 @@
       return false;
     }
 
+    // ── Pathfinding (A* for preview) ──────────────────────────
+    let currentPathData = null; // { path, stepCosts, totalAP, target }
+    let pathGraphics = null;
+
+    function findPathAStar(startCol, startRow, goalCol, goalRow) {
+      const startKey = `${startCol},${startRow}`;
+      const goalKey = `${goalCol},${goalRow}`;
+      const gScore = new Map([[startKey, 0]]);
+      const cameFrom = new Map();
+      const openSet = [{ key: startKey, col: startCol, row: startRow, f: 0 }];
+      const inOpen = new Set([startKey]);
+      const closed = new Set();
+
+      while (openSet.length > 0) {
+        let bestIdx = 0;
+        for (let i = 1; i < openSet.length; i++) {
+          if (openSet[i].f < openSet[bestIdx].f) bestIdx = i;
+        }
+        const cur = openSet.splice(bestIdx, 1)[0];
+        inOpen.delete(cur.key);
+        if (cur.key === goalKey) {
+          // Reconstruct
+          const path = [], costs = [];
+          let c = { key: cur.key, col: cur.col, row: cur.row };
+          while (cameFrom.has(c.key)) {
+            path.unshift({ col: c.col, row: c.row });
+            const p = cameFrom.get(c.key);
+            costs.unshift((gScore.get(c.key) ?? 0) - (gScore.get(p.key) ?? 0));
+            c = p;
+          }
+          return { found: true, path, stepCosts: costs, totalAP: costs.reduce((s, v) => s + v, 0) };
+        }
+        closed.add(cur.key);
+        const curTile = currentMap.getTile(cur.col, cur.row);
+        if (!curTile) continue;
+        for (const nb of offsetNeighbors(cur.col, cur.row)) {
+          const nbKey = `${nb.col},${nb.row}`;
+          if (closed.has(nbKey)) continue;
+          const nbTile = currentMap.getTile(nb.col, nb.row);
+          if (!nbTile) continue;
+          // Fog check
+          if (fogEnabled && getFogState(nb.col, nb.row) === 'unexplored') continue;
+          // Simple passability: skip water (no boat in preview)
+          if (nbTile.terrain === 'water') continue;
+          // Elevation blocks
+          const delta = nbTile.elevation - curTile.elevation;
+          if (delta > 3 || delta <= -4) continue;
+          // AP cost (simplified)
+          const baseCost = terrainConfig?.terrainTypes?.[nbTile.terrain]?.baseCost ?? 1;
+          const cost = delta < 0 ? 0.5 : (delta === 0 ? baseCost : baseCost + delta);
+          const tentG = (gScore.get(cur.key) ?? Infinity) + cost;
+          if (tentG < (gScore.get(nbKey) ?? Infinity)) {
+            gScore.set(nbKey, tentG);
+            cameFrom.set(nbKey, { key: cur.key, col: cur.col, row: cur.row });
+            const dx = Math.abs(nb.col - goalCol), dy = Math.abs(nb.row - goalRow);
+            const h = Math.max(dx, dy, (dx + dy) / 2);
+            if (!inOpen.has(nbKey)) {
+              openSet.push({ key: nbKey, col: nb.col, row: nb.row, f: tentG + h });
+              inOpen.add(nbKey);
+            } else {
+              const ex = openSet.find(n => n.key === nbKey);
+              if (ex) ex.f = tentG + h;
+            }
+          }
+        }
+      }
+      return { found: false };
+    }
+
+    function renderPathHighlight(pathData) {
+      clearPathHighlight();
+      if (!pathData || pathData.path.length === 0) return;
+      const g = new PIXI.Graphics();
+      let apLeft = 8; // assume 8 AP for preview
+      for (let i = 0; i < pathData.path.length; i++) {
+        const node = pathData.path[i];
+        const tile = currentMap.getTile(node.col, node.row);
+        if (!tile) continue;
+        const pos = offsetToPixel(node.col, node.row, HEX_SIZE, tile.elevation);
+        const cost = pathData.stepCosts[i] ?? 0;
+        const isLast = i === pathData.path.length - 1;
+        if (apLeft >= cost) {
+          g.beginFill(0x00bcd4, 0.4);
+          g.lineStyle(isLast ? 2 : 0, 0x00bcd4, isLast ? 0.9 : 0);
+          g.drawPolygon(hexPoints(pos.x, pos.y, HEX_SIZE));
+          g.endFill();
+          apLeft -= cost;
+        } else {
+          g.beginFill(0x00bcd4, 0.15);
+          g.lineStyle(isLast ? 2 : 0, 0x00bcd4, isLast ? 0.6 : 0);
+          g.drawPolygon(hexPoints(pos.x, pos.y, HEX_SIZE));
+          g.endFill();
+        }
+      }
+      pathGraphics = g;
+      mapContainer.addChild(g);
+    }
+
+    function clearPathHighlight() {
+      if (pathGraphics) { pathGraphics.destroy(); pathGraphics = null; }
+      currentPathData = null;
+    }
+
     // Click: select tile or move player
     app.view.addEventListener('click', (e) => {
       if (didDrag) return;
@@ -781,6 +884,37 @@
       selectedTile = { col, row };
       const isAdj = isNeighbor(playerPos.col, playerPos.row, col, row);
 
+      // Non-adjacent: pathfinding
+      if (!isAdj) {
+        // Double-click same remote tile → auto-move along path
+        if (currentPathData && currentPathData.target.col === col && currentPathData.target.row === row) {
+          // Auto-move along path
+          const pathCopy = [...currentPathData.path];
+          clearPathHighlight();
+          (async () => {
+            for (const step of pathCopy) {
+              if (!isNeighbor(playerPos.col, playerPos.row, step.col, step.row)) break;
+              movePlayer(step.col, step.row);
+              await new Promise(r => setTimeout(r, 300));
+            }
+          })();
+          panel.style.display = 'none';
+          return;
+        }
+        // Calculate path
+        const result = findPathAStar(playerPos.col, playerPos.row, col, row);
+        if (result.found) {
+          currentPathData = { ...result, target: { col, row } };
+          renderPathHighlight(currentPathData);
+          updateMarkers(currentMap, currentWidth, currentHeight);
+          updateFogLayer(currentMap, currentWidth, currentHeight);
+        } else {
+          clearPathHighlight();
+        }
+      } else {
+        clearPathHighlight();
+      }
+
       panel.style.display = 'block';
       document.getElementById('info-title').textContent = `(${col}, ${row})`;
       document.getElementById('info-content').innerHTML = `
@@ -789,6 +923,8 @@
         <div class="info-row">建筑: <span>${tile.building || '无'}</span></div>
         <div class="info-row">事件: <span>${tile.event || '无'}</span></div>
         ${isAdj ? '<div class="info-row" style="color:#4fc3f7;">👆 再次点击移动到此地块</div>' : ''}
+        ${!isAdj && currentPathData ? `<div class="info-row" style="color:#00bcd4;">🗺️ 路径: ${currentPathData.path.length} 步 | AP: ${currentPathData.totalAP.toFixed(1)} 👆再次点击出发</div>` : ''}
+        ${!isAdj && !currentPathData ? '<div class="info-row" style="color:#f44;">❌ 目标不可达</div>' : ''}
       `;
 
       // Update highlight

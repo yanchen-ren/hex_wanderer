@@ -105,16 +105,6 @@
       ],
       "sprite": "assets/item/resurrection_cross.png"
     },
-    "hourglass": {
-      "name": "沙漏",
-      "description": "对话选错致死/大额扣血时重新选择一次",
-      "quality": "rare",
-      "consumable": true,
-      "effects": [
-        { "type": "hourglass_retry" }
-      ],
-      "sprite": "assets/item/hourglass.png"
-    },
     "bomb": {
       "name": "炸弹",
       "description": "特定事件中解锁[炸开]选项",
@@ -396,7 +386,7 @@
     },
     "pharaoh_codex": {
       "name": "法老法典",
-      "description": "战斗概率[劝降]获战利品（boss除外）",
+      "description": "战斗劝降+诅咒免疫",
       "quality": "legendary",
       "effects": [
         { "type": "combat_surrender_chance", "value": 0.3 },
@@ -601,25 +591,25 @@
       ],
       "sprite": "assets/item/salted_fish.png"
     },
-    "empty_ball": {
-      "name": "空的球",
-      "description": "概率收服弱小野兽获得临时战斗伙伴",
-      "quality": "uncommon",
-      "consumable": true,
+    "beast_flute": {
+      "name": "唤兽笛",
+      "description": "战斗时可召唤动物伙伴助战，增加胜率并减少受伤",
+      "quality": "epic",
       "effects": [
-        { "type": "combat_capture", "captureChance": 0.3 }
+        { "type": "event_option_unlock", "optionTag": "summon_beast" },
+        { "type": "combat_bonus", "value": 0.25 }
       ],
-      "sprite": "assets/item/empty_ball.png"
+      "sprite": "assets/item/beast_flute.png"
     },
-    "dried_fruit": {
-      "name": "干果",
-      "description": "食用后回复5HP",
+    "balloon": {
+      "name": "气球",
+      "description": "战斗时有概率解锁[扎破气球]选项吓唬敌人（消耗品）",
       "quality": "common",
       "consumable": true,
       "effects": [
-        { "type": "hp_restore", "value": 5 }
+        { "type": "scare_chance", "value": 0.6 }
       ],
-      "sprite": "assets/item/dried_fruit.png"
+      "sprite": "assets/item/balloon.png"
     }
   },
   "combinations": [

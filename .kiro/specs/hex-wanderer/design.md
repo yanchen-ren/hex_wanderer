@@ -47,6 +47,7 @@ graph TB
         SaveSystem[SaveSystem<br/>存档系统]
         ItemSystem[ItemSystem<br/>道具系统]
         PlayerState[PlayerState<br/>玩家状态]
+        PathfindingSystem[PathfindingSystem<br/>自动寻路系统]
     end
 
     subgraph 渲染层
@@ -76,6 +77,9 @@ graph TB
     MapGenerator --> BuildingConfig
     MovementSystem --> TerrainConfig
     MovementSystem --> ItemSystem
+    PathfindingSystem --> MovementSystem
+    PathfindingSystem --> FogSystem
+    PathfindingSystem --> ItemSystem
     TurnSystem --> PlayerState
     EventSystem --> EventConfig
     FogSystem --> TerrainConfig
@@ -116,7 +120,8 @@ hex-wanderer/
 │   │   ├── ItemSystem.js       # 道具管理
 │   │   ├── BuildingSystem.js   # 建筑效果
 │   │   ├── SaveSystem.js       # 存档管理
-│   │   └── PlayerState.js      # 玩家状态
+│   │   ├── PlayerState.js      # 玩家状态
+│   │   └── PathfindingSystem.js # 自动寻路
 │   ├── render/                 # 渲染层
 │   │   ├── RenderEngine.js     # PixiJS 渲染主控
 │   │   ├── LayerManager.js     # 五层渲染管理
@@ -523,6 +528,128 @@ class PlayerState {
 }
 ```
 
+### 14. PathfindingSystem — 自动寻路系统
+
+基于 A* 算法的最短路径计算，以 AP 消耗为权重，考虑道具对通行和消耗的影响。
+
+```javascript
+class PathfindingSystem {
+  /**
+   * @param {import('./MovementSystem.js').MovementSystem} movementSystem
+   * @param {import('./FogSystem.js').FogSystem} fogSystem
+   * @param {import('./ItemSystem.js').ItemSystem} itemSystem
+   * @param {import('../map/MapData.js').MapData} mapData
+   */
+  constructor(movementSystem, fogSystem, itemSystem, mapData)
+
+  /**
+   * 使用 A* 算法计算从 start 到 goal 的最短路径。
+   * 权重 = 每步的实际 AP 消耗（含道具修正）。
+   * 仅在已探索地块上规划，未探索地块视为不可通行。
+   * 不回避摔伤风险路线（摔伤是概率性的）。
+   *
+   * @param {{q:number, r:number}} start - 起点坐标
+   * @param {{q:number, r:number}} goal - 目标坐标
+   * @returns {{ found: boolean, path: Array<{q:number, r:number}>, totalAP: number, stepCosts: number[] } | { found: false, reason: string }}
+   */
+  findPath(start, goal)
+
+  /**
+   * 计算路径上当前 AP 能走到的最远位置索引。
+   * @param {Array<{q:number, r:number}>} path - 完整路径
+   * @param {number[]} stepCosts - 每步 AP 消耗
+   * @param {number} currentAP - 当前可用 AP
+   * @returns {number} 最远可达的路径索引（0-based，0 = 第一步）
+   */
+  getReachableIndex(path, stepCosts, currentAP)
+
+  /**
+   * 检查从 from 到 to 是否可通行（考虑道具）。
+   * 复用 MovementSystem.canMoveTo 的逻辑。
+   * @param {object} fromTile
+   * @param {object} toTile
+   * @returns {boolean}
+   */
+  isPassable(fromTile, toTile)
+
+  /**
+   * 计算从 from 到 to 的 AP 消耗（考虑道具修正）。
+   * 复用 MovementSystem.calculateAPCost 的逻辑。
+   * @param {object} fromTile
+   * @param {object} toTile
+   * @returns {number}
+   */
+  getStepCost(fromTile, toTile)
+}
+```
+
+#### A* 算法设计
+
+```
+输入: start(q,r), goal(q,r), mapData, fogSystem, movementSystem
+输出: { found, path[], totalAP, stepCosts[] }
+
+1. openSet = 优先队列（按 f = g + h 排序）
+2. 将 start 加入 openSet，g(start) = 0
+3. h(n) = HexGrid.distance(n, goal) × 1（启发式：六边形距离 × 最小AP消耗）
+
+WHILE openSet 非空:
+  current = openSet 中 f 值最小的节点
+  IF current == goal: 回溯路径，返回结果
+
+  FOR EACH neighbor of current:
+    - 跳过未探索地块（fogSystem.getTileVisibility != explored/visible）
+    - 跳过不可通行地块（movementSystem.canMoveTo 返回 false）
+    - tentative_g = g(current) + movementSystem.calculateAPCost(current, neighbor)
+    - IF tentative_g < g(neighbor):
+        更新 g(neighbor), 设置 parent(neighbor) = current
+        将 neighbor 加入/更新 openSet
+
+RETURN { found: false, reason: '目标不可达' }
+```
+
+#### GameLoop 集成
+
+```
+自动移动状态机（新增 STATES.AUTO_MOVING）:
+
+1. 玩家点击远端已探索地块
+   → PathfindingSystem.findPath(playerPos, clickedPos)
+   → 成功: 渲染路径高亮 + 显示"出发"按钮
+   → 失败: toast "目标不可达"
+
+2. 玩家点击"出发"
+   → state = AUTO_MOVING
+   → 逐步执行 _tryMove(nextStep)
+   → 每步间隔 ~1 秒（无事件时）
+   → 遇到事件/建筑: 暂停，处理完继续
+   → 被传送: 清除路径
+   → AP 耗尽: 停止，保留剩余路径
+   → 玩家点击其他地块/取消: 停止，清除路径
+
+3. 过夜后
+   → 如有保留路径: 从当前位置重新计算到目标的路径
+   → 显示"继续出发"按钮
+
+4. 存档
+   → 保存 pathTarget: {q, r} | null
+   → 读档后重新计算路径
+```
+
+#### 路径渲染
+
+```
+路径高亮（与选中高亮区分）:
+- 选中高亮: 黄色边框 (#ffeb3b), lineStyle 2px
+- 路径高亮: 青色半透明填充 (#00bcd4, alpha 0.3)
+- 当前回合可达部分: 青色较亮 (alpha 0.4)
+- 超出当前回合 AP 的部分: 青色较暗 (alpha 0.15)
+- 目标地块: 青色边框 (#00bcd4, lineStyle 2px)
+
+路径信息 toast:
+- "路径: X 步 | 总 AP: Y | 本回合可走: Z 步"
+```
+
 ---
 
 ## 数据模型
@@ -852,55 +979,137 @@ class PlayerState {
 
 #### 地形素材 (assets/terrain/)
 
-| 文件名 | 说明 | 支持多变体 |
-|---|---|---|
-| grass.png (或 grass_1.png, grass_2.png ...) | 草地 | 是 |
-| grass_snow.png | 高海拔草地（雪地） | 是 |
-| desert.png | 荒漠 | 是 |
-| water.png | 水域 | 是 |
-| forest.png | 森林 | 是 |
-| forest_deep.png | 低海拔深色森林 | 是 |
-| swamp.png | 沼泽 | 是 |
-| lava.png | 熔岩 | 是 |
-| ice.png | 浮冰 | 是 |
+| 文件名 | 说明 | 尺寸 | 状态 |
+|---|---|---|---|
+| grass.png | 草地 | 148×128 | ✅ 已生成 |
+| grass_snow.png | 高海拔草地（雪地） | 148×128 | ✅ 已生成 |
+| desert.png | 荒漠 | 148×128 | ✅ 已生成 |
+| desert_snow.png | 高海拔荒漠（雪地） | 148×128 | ✅ 已生成 |
+| water.png | 水域 | 148×128 | ✅ 已生成 |
+| forest.png | 森林（海拔≥5） | 128×153 | ✅ 已生成（高素材，底边对齐） |
+| forest_deep.png | 低海拔深色森林（海拔<5） | 128×153 | ✅ 已生成（高素材，底边对齐） |
+| forest_snow.png | 高海拔雪松林 | 128×153 | ✅ 已生成（高素材，底边对齐） |
+| swamp.png | 沼泽 | 148×128 | ✅ 已生成 |
+| lava.png | 熔岩 | 148×128 | ✅ 已生成 |
+| ice.png | 浮冰 | 148×128 | ✅ 已生成 |
 
 #### 建筑素材 (assets/building/)
 
-| 文件名 | 说明 | 支持多变体 |
+| 文件名 | 说明 | 状态 |
 |---|---|---|
-| lighthouse.png | 灯塔 | 否 |
-| camp.png | 营地 | 是 |
-| city.png | 城市 | 是 |
-| ruin.png | 遗迹 | 是 |
-| portal.png | 传送门 | 否 |
-| teleporter.png | 传送阵 | 否 |
-| cave.png | 洞穴 | 是 |
-| farm.png | 农田 | 是 |
-| mine.png | 矿坑 | 是 |
-| monster_camp.png | 怪物营地 | 是 |
-| whirlpool.png | 漩涡 | 否 |
+| camp.png | 营地 | ✅ 已生成 |
+| lighthouse.png | 灯塔 | ✅ 已生成 |
+| city.png | 城市 | ✅ 已生成 |
+| ruin.png | 遗迹 | ✅ 已生成 |
+| portal.png | 传送门 | ✅ 已生成 |
+| teleporter.png | 传送阵 | ✅ 已生成 |
+| cave.png | 洞穴 | ✅ 已生成 |
+| farm.png | 农田 | ✅ 已生成 |
+| mine.png | 矿坑 | ✅ 已生成 |
+| monster_camp.png | 怪物营地 | ✅ 已生成 |
+| whirlpool.png | 漩涡 | ✅ 已生成 |
+| church.png | 教堂 | ✅ 已生成 |
+| watchtower.png | 瞭望塔 | ✅ 已生成 |
+| reef.png | 暗礁 | ✅ 已生成 |
+| training_ground.png | 训练场 | ✅ 已生成 |
+| altar.png | 祭坛 | ✅ 已生成 |
+| spring.png | 泉水 | ✅ 已生成 |
+| wishing_well.png | 许愿池 | ✅ 已生成 |
+| phone_booth.png | 废弃电话亭 | ✅ 已生成 |
+| food_truck.png | 路边餐车 | ✅ 已生成 |
+| bonfire.png | 孤独的篝火 | ✅ 已生成 |
+| hollow_tree.png | 树洞 | ✅ 已生成 |
+| colossus_hand.png | 巨像之手 | ✅ 已生成 |
+| vending_machine.png | 自动贩卖机 | ✅ 已生成 |
+| village.png | 村庄 | ✅ 已生成 |
+| castle.png | 城堡 | ✅ 已生成 |
 
 #### 道具素材 (assets/item/)
 
-| 文件名 | 说明 |
-|---|---|
-| rope_claw.png | 钩爪 |
-| parachute.png | 降落伞 |
-| boat.png | 船只 |
-| fire_boots.png | 防火靴 |
-| telescope.png | 望远镜 |
-| leather_shoes.png | 皮靴 |
-| tent.png | 帐篷 |
-| clover.png | 四叶草 |
-| antidote.png | 解毒药 |
+| 文件名 | 说明 | 品质 | 状态 |
+|---|---|---|---|
+| rope_claw.png | 钩爪 | rare | ✅ 已生成 |
+| parachute.png | 降落伞 | rare | ✅ 已生成 |
+| boat.png | 船只 | uncommon | ✅ 已生成 |
+| fire_boots.png | 防火靴 | uncommon | ✅ 已生成 |
+| telescope.png | 望远镜 | uncommon | ✅ 已生成 |
+| leather_shoes.png | 皮靴 | common | ✅ 已生成 |
+| tent.png | 帐篷 | common | ✅ 已生成 |
+| clover.png | 四叶草 | epic | ✅ 已生成 |
+| antidote.png | 解毒药 | common | ✅ 已生成 |
+| helmet.png | 安全帽 | common | ✅ 已生成 |
+| resurrection_cross.png | 重生十字架 | rare | ✅ 已生成 |
+| bomb.png | 炸弹 | uncommon | ✅ 已生成 |
+| garlic.png | 大蒜 | common | ✅ 已生成 |
+| wolfsbane.png | 狼毒草 | uncommon | ❌ 未生成 |
+| smoke_bomb.png | 烟雾弹 | uncommon | ✅ 已生成 |
+| mystery_egg.png | 神秘蛋 | uncommon | ❌ 未生成 |
+| hunting_dog.png | 猎犬 | rare | ✅ 已生成 |
+| car.png | 越野车 | epic | ✅ 已生成 |
+| feather.png | 羽毛 | common | ✅ 已生成 |
+| sword.png | 长剑 | uncommon | ✅ 已生成 |
+| strange_gem.png | 奇异宝石 | uncommon | ❌ 未生成 |
+| compass.png | 指南针 | uncommon | ✅ 已生成 |
+| old_scroll.png | 古老卷轴 | common | ✅ 已生成 |
+| blue_sweater.png | 蓝色毛衣 | common | ✅ 已生成 |
+| water_cup.png | 水杯 | common | ❌ 未生成 |
+| mask.png | 面具 | uncommon | ❌ 未生成 |
+| briefcase.png | 公文包 | uncommon | ✅ 已生成 |
+| shovel.png | 铲子 | common | ✅ 已生成 |
+| stick.png | 木棍 | common | ✅ 已生成 |
+| torch.png | 火把 | common | ✅ 已生成 |
+| pearl.png | 珍珠 | uncommon | ✅ 已生成 |
+| pharaoh_scepter.png | 法老权杖 | epic | ❌ 未生成 |
+| camper_van.png | 房车 | epic | ❌ 未生成 |
+| glider.png | 滑翔翼 | epic | ✅ 已生成 |
+| drill.png | 钻头 | rare | ❌ 未生成 |
+| mega_torch.png | 巨型火把 | rare | ❌ 未生成 |
+| master_sword.png | 大师之剑 | epic | ❌ 未生成 |
+| treasure_map.png | 藏宝图 | rare | ✅ 已生成 |
+| elixir.png | 万能药 | legendary | ❌ 未生成（合成道具） |
+| diplomat_kit.png | 外交官套装 | legendary | ❌ 未生成（合成道具） |
+| pharaoh_codex.png | 法老法典 | legendary | ❌ 未生成（合成道具） |
+| black_pearl.png | 黑珍珠号 | legendary | ❌ 未生成（合成道具） |
+| vest.png | 防弹衣 | uncommon | ❌ 未生成 |
+| chainmail.png | 锁子甲 | rare | ❌ 未生成 |
+| shield.png | 盾牌 | uncommon | ✅ 已生成 |
+| bio_suit.png | 防化服 | rare | ❌ 未生成 |
+| climbing_gloves.png | 攀岩手套 | uncommon | ❌ 未生成 |
+| witch_broom.png | 女巫扫帚 | epic | ❌ 未生成 |
+| fan.png | 扇子 | common | ❌ 未生成 |
+| earphone.png | 耳机 | uncommon | ❌ 未生成 |
+| whip.png | 鞭子 | rare | ✅ 已生成 |
+| cowboy_hat.png | 牛仔帽 | uncommon | ✅ 已生成 |
+| straw_doll.png | 稻草人 | common | ❌ 未生成 |
+| thief_medal.png | 盗贼印记 | uncommon | ❌ 未生成 |
+| sheriff_badge.png | 治安官徽章 | uncommon | ❌ 未生成 |
+| hoe.png | 锄头 | common | ✅ 已生成 |
+| marigold.png | 金盏花 | common | ❌ 未生成 |
+| accordion.png | 手风琴 | uncommon | ❌ 未生成 |
+| magnet.png | 磁铁 | uncommon | ❌ 未生成 |
+| sickle.png | 镰刀 | common | ❌ 未生成 |
+| lava_core.png | 熔岩核心 | epic | ❌ 未生成 |
+| salted_fish.png | 咸鱼 | common | ❌ 未生成 |
+| beast_flute.png | 唤兽笛 | epic | ❌ 未生成 |
+| balloon.png | 气球 | common | ❌ 未生成 |
 
 #### UI 素材 (assets/ui/)
 
-| 文件名 | 说明 |
-|---|---|
-| player.png | 玩家角色 |
-| relic.png | 圣物碎片 |
-| event_marker.png | 事件标记 |
-| monster_marker.png | 怪物标记 |
+| 文件名 | 说明 | 状态 |
+|---|---|---|
+| player.png | 玩家角色（支持水平翻转表示方向） | ✅ 已生成 |
+| event_marker.png | 事件标记（选择/通用事件） | ✅ 已生成 |
+| monster_marker.png | 怪物标记（战斗事件） | ✅ 已生成 |
+| treature_marker.png | 宝箱标记（宝箱/拾取事件） | ✅ 已生成 |
+
+#### 素材统计
+
+| 类别 | 总数 | 已生成 | 未生成 |
+|---|---|---|---|
+| 地形 | 11 | 11 | 0 |
+| 建筑 | 26 | 26 | 0 |
+| 道具 | 61 | 34 | 27 |
+| UI | 4 | 4 | 0 |
+| **合计** | **102** | **75** | **27** |
 
 ---

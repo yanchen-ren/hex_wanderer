@@ -31,7 +31,7 @@ const BUILDING_EMOJI = {
   reef: '🪸', training_ground: '🏋️', altar: '🪨', spring: '💧',
   wishing_well: '🪙', phone_booth: '📞', food_truck: '🍔',
   bonfire: '🔥', hollow_tree: '🌳', colossus_hand: '✋',
-  vending_machine: '🥫', village: '🏡',
+  vending_machine: '🥫', village: '🏡', castle: '🏰',
 };
 
 export class AssetLoader {
