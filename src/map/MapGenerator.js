@@ -330,8 +330,14 @@ export class MapGenerator {
     // Place portal first (required for win condition)
     this._placeBuilding(map, 'portal', buildingTypes.portal);
 
-    // Place teleporter pair
-    this._placeTeleporterPair(map, buildingTypes.teleporter);
+    // Place teleporter pairs (0-5 based on map size)
+    if (buildingTypes.teleporter) {
+      const maxPairs = Math.min(5, Math.max(0, Math.floor((this.width * this.height) / 500)));
+      const pairCount = this.rng.nextInt(Math.max(1, maxPairs - 1), maxPairs);
+      for (let i = 0; i < pairCount; i++) {
+        this._placeTeleporterPair(map, buildingTypes.teleporter, i);
+      }
+    }
 
     // Place farm clusters (at least 3 adjacent farms each)
     if (buildingTypes.farm) {
@@ -433,7 +439,7 @@ export class MapGenerator {
     return null;
   }
 
-  _placeTeleporterPair(map, config) {
+  _placeTeleporterPair(map, config, pairIndex = 0) {
     const allowed = config.allowedTerrains || [];
     const maxAttempts = 100;
     const placed = [];
@@ -453,6 +459,7 @@ export class MapGenerator {
         }
 
         tile.building = 'teleporter';
+        tile.teleporterPairIndex = pairIndex;
         placed.push({ q, r });
         break;
       }

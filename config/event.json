@@ -4,7 +4,7 @@
       "type": "choice",
       "allowedTerrains": ["any"],
       "title": "旅途的起点",
-      "description": "你站在一片开阔的草地上，远方的迷雾中隐约可见山脉和森林的轮廓。一块古老的石碑矗立在面前，上面刻着文字：「收集三块圣物碎片💎，找到传送门🌀，即可离开此地。小心脚下的地形，善用你找到的道具。祝你好运，旅行者。」",
+      "description": "你站在一片开阔的草地上，远方的迷雾中隐约可见山脉和森林的轮廓。一块古老的石碑矗立在面前，上面刻着文字：「收集三块圣物碎片<img src='assets/ui/relic.png' style='width:16px;height:16px;vertical-align:middle;display:inline-block;'>，找到传送门<img src='assets/building/portal.png' style='width:16px;height:16px;vertical-align:middle;display:inline-block;'>，即可离开此地。小心脚下的地形，善用你找到的道具。祝你好运，旅行者。」",
       "deathWarning": false,
       "choices": [
         {
@@ -34,9 +34,9 @@
           "text": "打开宝箱",
           "conditions": [],
           "outcomes": [
-            { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["tent", "antidote", "leather_shoes"] } },
+            { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["tent", "antidote", "leather_shoes", "balloon"] } },
             { "probability": 0.4, "result": { "type": "gold_change", "value": 15, "message": "宝箱里装着一些金币！+15 金币" } },
-            { "probability": 0.2, "result": { "type": "hp_change", "value": -10, "message": "宝箱是个陷阱！一阵毒气喷出！" } }
+            { "probability": 0.2, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -10 }, { "type": "status_effect", "statusId": "poison", "duration": 2 }], "message": "宝箱是个陷阱！一阵毒气喷出！-10 HP，中毒2回合" } }
           ]
         },
         {
@@ -100,7 +100,7 @@
           "text": "深入探索",
           "conditions": [],
           "outcomes": [
-            { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["telescope", "four_leaf_clover"], "message": "你在密室中发现了珍贵的宝物！" } },
+            { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["telescope", "four_leaf_clover", "resurrection_cross"], "message": "你在密室中发现了珍贵的宝物！" } },
             { "probability": 0.3, "result": { "type": "hp_change", "value": -15, "message": "你触发了古老的陷阱！" } },
             { "probability": 0.3, "result": { "type": "relic_fragment", "message": "你发现了一块闪耀的圣物碎片！" } }
           ]
@@ -187,7 +187,7 @@
           ]
         },
         {
-          "text": "🐟 掏出咸鱼嘲讽",
+          "text": "掏出咸鱼嘲讽",
           "conditions": [{ "type": "has_item", "itemId": "salted_fish" }],
           "outcomes": [
             { "probability": 0.5, "result": { "type": "gold_change", "value": 15, "message": "你掏出咸鱼朝商人扔过去。商人被吓了一跳，骆驼受惊把货物撒了一地。你趁乱捡了些金币。+15 金币" } },
@@ -339,7 +339,7 @@
           "text": "跟随鬼火",
           "conditions": [],
           "outcomes": [
-            { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["four_leaf_clover", "telescope"], "message": "鬼火引导你找到了隐藏的宝物！" } },
+            { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["four_leaf_clover", "telescope", "straw_doll"], "message": "鬼火引导你找到了隐藏的宝物！" } },
             { "probability": 0.3, "result": { "type": "hp_change", "value": -15, "message": "鬼火将你引入了陷阱！" } },
             { "probability": 0.3, "result": { "type": "status_effect", "statusId": "poison", "duration": 2, "message": "你吸入了沼气，感到头晕目眩" } }
           ]
@@ -438,7 +438,7 @@
           "text": "花40金币购买物品",
           "conditions": [{ "type": "gold_cost", "value": 40 }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "trade", "goldCost": 40, "itemPool": ["tent", "antidote", "leather_shoes", "telescope", "rope_claw"], "message": "你在摊位上买到了一件有用的物品" } }
+            { "probability": 1.0, "result": { "type": "trade", "goldCost": 40, "itemPool": ["tent", "antidote", "leather_shoes", "telescope", "rope_claw", "briefcase", "accordion", "thief_medal"], "message": "你在摊位上买到了一件有用的物品" } }
           ]
         },
         {
@@ -469,7 +469,7 @@
           "text": "深入洞穴",
           "conditions": [],
           "outcomes": [
-            { "probability": 0.35, "result": { "type": "item_reward", "itemPool": ["rope_claw", "fire_boots", "four_leaf_clover"], "message": "你在洞穴深处发现了珍贵的宝物！" } },
+            { "probability": 0.35, "result": { "type": "item_reward", "itemPool": ["rope_claw", "fire_boots", "four_leaf_clover", "witch_broom", "beast_flute", "car"], "message": "你在洞穴深处发现了珍贵的宝物！" } },
             { "probability": 0.35, "result": { "type": "hp_change", "value": -20, "message": "洞穴中的蝙蝠群攻击了你！" } },
             { "probability": 0.3, "result": { "type": "relic_fragment", "message": "洞穴最深处闪耀着圣物碎片的光芒！" } }
           ]
@@ -502,7 +502,7 @@
           "text": "进入矿道搜索",
           "conditions": [],
           "outcomes": [
-            { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["fire_boots", "leather_shoes"], "message": "你在矿脉中发现了特殊的矿石制品！" } },
+            { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["fire_boots", "leather_shoes", "climbing_gloves"], "message": "你在矿脉中发现了特殊的矿石制品！" } },
             { "probability": 0.3, "result": { "type": "hp_change", "value": -10, "message": "矿道塌方！碎石砸伤了你" } },
             { "probability": 0.3, "result": { "type": "hp_change", "value": 5, "message": "你找到了矿工留下的食物和水" } }
           ]
@@ -535,7 +535,7 @@
           "text": "全力战斗",
           "conditions": [],
           "outcomes": [
-            { "probability": 0.3, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -20 }, { "type": "item_reward", "itemPool": ["rope_claw", "parachute", "four_leaf_clover"] }, { "type": "gold_change", "value": 40 }], "message": "你浴血奋战击败了怪物，在营地中找到了宝物和金币！-20 HP，+40 金币" } },
+            { "probability": 0.3, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -20 }, { "type": "item_reward", "itemPool": ["rope_claw", "parachute", "four_leaf_clover", "resurrection_cross"] }, { "type": "gold_change", "value": 40 }], "message": "你浴血奋战击败了怪物，在营地中找到了宝物和金币！-20 HP，+40 金币" } },
             { "probability": 0.4, "result": { "type": "hp_change", "value": -35, "message": "你勉强击退了怪物，但伤势严重" } },
             { "probability": 0.3, "result": { "type": "hp_change", "value": -50, "message": "怪物太强了，你几乎丧命！" } }
           ]
@@ -570,7 +570,7 @@
           "text": "强行打开",
           "conditions": [],
           "outcomes": [
-            { "probability": 0.3, "result": { "type": "item_reward", "itemPool": ["parachute", "boat", "telescope"], "message": "箱子里装着珍贵的物品！" } },
+            { "probability": 0.3, "result": { "type": "item_reward", "itemPool": ["parachute", "boat", "telescope", "mystery_egg"], "message": "箱子里装着珍贵的物品！" } },
             { "probability": 0.3, "result": { "type": "gold_change", "value": 25, "message": "箱子里装着一袋金币！+25 金币" } },
             { "probability": 0.2, "result": { "type": "hp_change", "value": -15, "message": "箱子上的机关触发了，一根毒针刺中了你！" } },
             { "probability": 0.2, "result": { "type": "hp_change", "value": 20, "message": "箱子里装着治愈药水！" } }
@@ -610,7 +610,7 @@
           ]
         },
         {
-          "text": "🐟 掏出咸鱼嘲讽",
+          "text": "掏出咸鱼嘲讽",
           "conditions": [{ "type": "has_item", "itemId": "salted_fish" }],
           "outcomes": [
             { "probability": 0.6, "result": { "type": "hp_change", "value": 20, "message": "你掏出咸鱼在治疗师面前晃了晃。她被恶心到了，但出于职业道德还是免费帮你治疗了。「以后别带这种东西来！」+20 HP" } },
@@ -842,8 +842,8 @@
           "text": "用大蒜驱赶",
           "conditions": [{ "type": "has_item", "itemId": "garlic" }],
           "outcomes": [
-            { "probability": 0.7, "result": { "type": "nothing", "message": "大蒜的气味让不死族退避三舍" } },
-            { "probability": 0.3, "result": { "type": "hp_change", "value": -10, "message": "大蒜效果不够强，你还是受了些伤" } }
+            { "probability": 0.7, "result": { "type": "multi", "results": [{"type": "consume_item", "itemId": "garlic"}], "message": "大蒜的气味让不死族退避三舍。大蒜已消耗" } },
+            { "probability": 0.3, "result": { "type": "multi", "results": [{"type": "consume_item", "itemId": "garlic"}, {"type": "hp_change", "value": -10}], "message": "大蒜效果不够强，你还是受了些伤。大蒜已消耗" } }
           ]
         },
         {
@@ -1326,8 +1326,8 @@
           "text": "用大蒜驱赶",
           "conditions": [{ "type": "has_item", "itemId": "garlic" }],
           "outcomes": [
-            { "probability": 0.7, "result": { "type": "nothing", "message": "大蒜的气味让不死族退避三舍" } },
-            { "probability": 0.3, "result": { "type": "hp_change", "value": -10, "message": "大蒜效果不够强，你还是受了些伤" } }
+            { "probability": 0.7, "result": { "type": "multi", "results": [{"type": "consume_item", "itemId": "garlic"}], "message": "大蒜的气味让不死族退避三舍。大蒜已消耗" } },
+            { "probability": 0.3, "result": { "type": "multi", "results": [{"type": "consume_item", "itemId": "garlic"}, {"type": "hp_change", "value": -10}], "message": "大蒜效果不够强，你还是受了些伤。大蒜已消耗" } }
           ]
         },
         {
@@ -1684,7 +1684,7 @@
           "text": "花30金币交易",
           "conditions": [{ "type": "gold_cost", "value": 30 }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "trade", "goldCost": 30, "itemPool": ["tent", "antidote", "leather_shoes", "rope_claw"], "message": "你从路过的商人手中买到了一件物品" } }
+            { "probability": 1.0, "result": { "type": "trade", "goldCost": 30, "itemPool": ["tent", "antidote", "leather_shoes", "rope_claw", "blue_sweater", "sickle"], "message": "你从路过的商人手中买到了一件物品" } }
           ]
         },
         {
@@ -3138,7 +3138,7 @@
           ]
         },
         {
-          "text": "🐟 掏出咸鱼嘲讽",
+          "text": "掏出咸鱼嘲讽",
           "conditions": [{ "type": "has_item", "itemId": "salted_fish" }],
           "outcomes": [
             { "probability": 0.5, "result": { "type": "gold_change", "value": 10, "message": "你掏出咸鱼在商人面前晃了晃。商人被臭味熏得后退三步，慌乱中掉了几枚金币。「你这个疯子！」+10 金币" } },
@@ -4206,7 +4206,7 @@
           "text": "花20金币交易",
           "conditions": [{ "type": "gold_cost", "value": 20 }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "trade", "goldCost": 20, "itemPool": ["tent", "antidote", "leather_shoes", "stick", "feather"], "message": "你在村庄的小铺子里买到了一件物品" } }
+            { "probability": 1.0, "result": { "type": "trade", "goldCost": 20, "itemPool": ["tent", "antidote", "leather_shoes", "stick", "feather", "balloon", "blue_sweater", "marigold", "sickle"], "message": "你在村庄的小铺子里买到了一件物品" } }
           ]
         },
         {
@@ -4263,7 +4263,7 @@
           "text": "战斗",
           "conditions": [],
           "outcomes": [
-            { "probability": 0.4, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -25 }, { "type": "item_reward", "itemPool": ["strange_gem", "sword", "shield", "whip"] }, { "type": "gold_change", "value": 30 }], "message": "你击碎了骷髅骑士！从它的残骸中发现了稀有物品和金币！-25 HP，+30 金币" } },
+            { "probability": 0.4, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -25 }, { "type": "item_reward", "itemPool": ["strange_gem", "sword", "shield", "whip", "vest", "chainmail"] }, { "type": "gold_change", "value": 30 }], "message": "你击碎了骷髅骑士！从它的残骸中发现了稀有物品和金币！-25 HP，+30 金币" } },
             { "probability": 0.3, "result": { "type": "hp_change", "value": -35, "message": "骷髅骑士的巨剑劈中了你，伤势严重！-35 HP" } },
             { "probability": 0.3, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -20 }, { "type": "status_effect", "statusId": "curse", "duration": 4 }], "message": "你击退了骷髅骑士，但它临死前对你施加了诅咒！-20 HP，获得诅咒" } }
           ]
@@ -4333,10 +4333,10 @@
           ]
         },
         {
-          "text": "用狼毒药剂",
+          "text": "用防狼喷雾",
           "conditions": [{ "type": "has_item", "itemId": "wolfsbane" }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "nothing", "message": "你掏出狼毒药剂，狼人闻到气味后痛苦地嚎叫着逃走了！" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "consume_item", "itemId": "wolfsbane" }], "message": "你掏出防狼喷雾，狼人闻到气味后痛苦地嚎叫着逃走了！防狼喷雾已消耗" } }
           ]
         },
         {
@@ -4395,7 +4395,7 @@
           "outcomes": [
             { "probability": 0.4, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -25 }, { "type": "gold_change", "value": 60 }], "message": "你击败了山贼头目！缴获了大量赃物！-25 HP，+60 金币" } },
             { "probability": 0.3, "result": { "type": "hp_change", "value": -40, "message": "山贼头目武艺高强，你被打得落花流水！-40 HP" } },
-            { "probability": 0.3, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -20 }, { "type": "item_reward", "itemPool": ["sword", "shield", "mask", "cowboy_hat"] }], "message": "你击退了山贼头目，从他的藏宝处找到了一件物品！-20 HP" } }
+            { "probability": 0.3, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -20 }, { "type": "item_reward", "itemPool": ["sword", "shield", "mask", "cowboy_hat", "vest"] }], "message": "你击退了山贼头目，从他的藏宝处找到了一件物品！-20 HP" } }
           ]
         },
         {
@@ -4467,7 +4467,7 @@
           "text": "用烟雾弹驱散",
           "conditions": [{ "type": "has_item", "itemId": "smoke_bomb" }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "nothing", "message": "烟雾弹释放的浓烟迅速驱散了黄蜂群！" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "consume_item", "itemId": "smoke_bomb" }], "message": "烟雾弹释放的浓烟迅速驱散了黄蜂群！烟雾弹已消耗" } }
           ]
         },
         {
@@ -4572,7 +4572,7 @@
           "text": "用大蒜驱赶",
           "conditions": [{ "type": "has_item", "itemId": "garlic" }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "nothing", "message": "大蒜的气味让木乃伊痛苦地后退，最终重新沉入沙中。" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{"type": "consume_item", "itemId": "garlic"}], "message": "大蒜的气味让木乃伊痛苦地后退，最终重新沉入沙中。大蒜已消耗" } }
           ]
         }
       ]
@@ -4861,7 +4861,7 @@
           "text": "用大蒜驱赶",
           "conditions": [{ "type": "has_item", "itemId": "garlic" }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "hp_change", "value": -5, "message": "大蒜的气味让女巫痛苦地尖叫，她丢下法杖逃走了。你只受了轻伤。-5 HP" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{"type": "consume_item", "itemId": "garlic"}, {"type": "hp_change", "value": -5}], "message": "大蒜的气味让女巫痛苦地尖叫，她丢下法杖逃走了。大蒜已消耗，-5 HP" } }
           ]
         },
         {
@@ -5234,7 +5234,7 @@
           "text": "用大蒜驱赶",
           "conditions": [{ "type": "has_item", "itemId": "garlic" }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "nothing", "message": "你掏出大蒜，吸血鬼痛苦地尖叫着化为蝙蝠逃走了！" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{"type": "consume_item", "itemId": "garlic"}], "message": "你掏出大蒜，吸血鬼痛苦地尖叫着化为蝙蝠逃走了！大蒜已消耗" } }
           ]
         },
         {
@@ -5262,7 +5262,7 @@
       "deathWarning": false,
       "choices": [
         {
-          "text": "🎧 这不是宝箱！快跑！",
+          "text": "这不是宝箱！快跑！",
           "conditions": [{ "type": "has_item", "itemId": "earphone" }],
           "outcomes": [
             { "probability": 1.0, "result": { "type": "nothing", "message": "耳机里传来警告声：「检测到伪装生物，建议远离！」你赶紧后退，宝箱怪愤怒地咬了个空。" } }

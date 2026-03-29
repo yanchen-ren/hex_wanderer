@@ -336,6 +336,15 @@
               buildingSpriteTextures[id] = await PIXI.Assets.load('../' + bc.sprite);
             } catch (_) { /* fallback to emoji */ }
           }
+          // Load sprite variants (teleporter etc.)
+          if (bc.spriteVariants) {
+            for (let vi = 0; vi < bc.spriteVariants.length; vi++) {
+              try {
+                const varKey = id + '-' + (vi + 1);
+                buildingSpriteTextures[varKey] = await PIXI.Assets.load('../' + bc.spriteVariants[vi]);
+              } catch (_) { /* skip */ }
+            }
+          }
         }
       }
     }
@@ -612,7 +621,12 @@
           const pos = offsetToPixel(col, row, HEX_SIZE, tile.elevation);
 
           if (tile.building) {
-            const bTex = buildingSpriteTextures[tile.building];
+            let bTex = buildingSpriteTextures[tile.building];
+            // Teleporter variant support
+            if (tile.building === 'teleporter' && tile.teleporterPairIndex != null) {
+              const varKey = 'teleporter-' + ((tile.teleporterPairIndex % 5) + 1);
+              if (buildingSpriteTextures[varKey]) bTex = buildingSpriteTextures[varKey];
+            }
             if (bTex) {
               const s = new PIXI.Sprite(bTex);
               s.anchor.set(0.5);

@@ -157,6 +157,26 @@
         "rule": "random"
       },
       "elevationSpriteThreshold": null
+    },
+    "void": {
+      "name": "虚空",
+      "baseCost": 999,
+      "requiredItem": null,
+      "restEffect": { "hpChange": 0, "apBonus": 0 },
+      "visionModifier": 0,
+      "overnightEventChance": 0,
+      "overnightEvents": [],
+      "enterDamage": 0,
+      "enterDamageChance": 0,
+      "statusOnEnter": null,
+      "statusOnEnterChance": 0,
+      "waterEntry": false,
+      "waterExitCostExtra": 0,
+      "eventWeights": { "combat": 0, "treasure": 0, "choice": 0 },
+      "refreshChance": 0,
+      "impassable": true,
+      "sprites": null,
+      "elevationSpriteThreshold": null
     }
   }
 }

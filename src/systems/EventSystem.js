@@ -23,6 +23,17 @@ export class EventSystem {
     this._rng = deps.rng ?? null;
   }
 
+  /** Generate inline item icon HTML for choice text */
+  _itemIcon(itemId, size = 24) {
+    if (!this._itemSystem) return '';
+    const defs = this._itemSystem._itemDefs ?? {};
+    const def = defs[itemId];
+    if (def?.sprite) {
+      return `<img src="${def.sprite}" style="width:${size}px;height:${size}px;vertical-align:middle;display:inline-block;margin:0 2px;">`;
+    }
+    return '';
+  }
+
   /**
    * Generate a random number in [0, 1). Uses SeededRandom if available, else Math.random.
    * @returns {number}
@@ -54,6 +65,19 @@ export class EventSystem {
       return { ...choice, originalIndex: index, conditionsMet };
     }).filter(c => c.conditionsMet);
 
+    // Append item icons to choices unlocked by has_item conditions
+    for (const choice of availableChoices) {
+      const conditions = choice.conditions ?? [];
+      for (const cond of conditions) {
+        if (cond.type === 'has_item' && cond.itemId) {
+          const icon = this._itemIcon(cond.itemId);
+          if (icon && !choice.text.includes(cond.itemId)) {
+            choice.text = choice.text + ' ' + icon;
+          }
+        }
+      }
+    }
+
     // Hide trade choices where all items in pool are already owned/blocked
     if (this._itemSystem) {
       for (let i = availableChoices.length - 1; i >= 0; i--) {
@@ -72,6 +96,42 @@ export class EventSystem {
 
     // Restore previous terrain
     this._playerState._currentTerrain = prevTerrain;
+
+    // Ruin loot upgrade (drill): upgrade common itemPools in ruin/cave/mine events (deep clone to avoid mutating originals)
+    if (this._itemSystem) {
+      const ruinUpgrade = this._itemSystem.getActiveEffects().ruinLootUpgrade;
+      if (ruinUpgrade) {
+        const upgradeEvents = ['ruin_explore', 'cave_explore', 'mine_explore'];
+        if (upgradeEvents.includes(eventId)) {
+          const rarePool = ['telescope', 'rope_claw', 'fire_boots', 'compass', 'boat', 'sword', 'shield', 'whip'];
+          for (const choice of availableChoices) {
+            if (!choice.outcomes) continue;
+            choice.outcomes = choice.outcomes.map(o => {
+              const r = o.result;
+              if (!r) return o;
+              if (r.type === 'item_reward' && r.itemPool) {
+                return { ...o, result: { ...r, itemPool: r.itemPool.map(id => {
+                  const d = (this._itemSystem._itemDefs ?? {})[id];
+                  return (d && d.quality === 'common') ? rarePool[Math.floor(this._random() * rarePool.length)] : id;
+                })}};
+              }
+              if (r.type === 'multi' && Array.isArray(r.results)) {
+                return { ...o, result: { ...r, results: r.results.map(sub => {
+                  if (sub.type === 'item_reward' && sub.itemPool) {
+                    return { ...sub, itemPool: sub.itemPool.map(id => {
+                      const d = (this._itemSystem._itemDefs ?? {})[id];
+                      return (d && d.quality === 'common') ? rarePool[Math.floor(this._random() * rarePool.length)] : id;
+                    })};
+                  }
+                  return sub;
+                })}};
+              }
+              return o;
+            });
+          }
+        }
+      }
+    }
 
     // Beast flute: inject "召唤动物伙伴" option into combat events
     if (def.type === 'combat' && this._itemSystem && this._itemSystem.hasActiveItem('beast_flute')) {
@@ -109,7 +169,7 @@ export class EventSystem {
           }
         }
         availableChoices.push({
-          text: '🐾 吹响唤兽笛召唤伙伴助战',
+          text: `吹响唤兽笛召唤伙伴助战 ${this._itemIcon('beast_flute')}`,
           conditions: [],
           outcomes: beastOutcomes,
           originalIndex: availableChoices.length,
@@ -118,46 +178,89 @@ export class EventSystem {
       }
     }
 
-    // Balloon: inject "扎破气球" option into combat events (consumable, difficulty-based)
-    if (def.type === 'combat' && this._itemSystem && this._itemSystem.hasActiveItem('balloon')) {
+    // Scare mechanic: straw_doll (permanent) and balloon (consumable)
+    if (def.type === 'combat' && this._itemSystem) {
       const effects = this._itemSystem.getActiveEffects();
       const scareChance = effects.scareChance ?? 0;
-      // Harder enemies (deathWarning) are less likely to be scared
       const difficultyMod = def.deathWarning ? 0.5 : 1.0;
-      if (scareChance > 0 && this._random() < scareChance * difficultyMod) {
-        // Find the best gold reward from fight outcomes to use as scare reward
+      const hasBalloon = this._itemSystem.hasActiveItem('balloon');
+      const hasStrawDoll = this._itemSystem.hasActiveItem('straw_doll');
+
+      if (scareChance > 0 && (hasBalloon || hasStrawDoll) && this._random() < scareChance * difficultyMod) {
+        // Calculate rewards/penalties from fight outcomes
         const fightChoice = availableChoices.find(c => c.originalIndex === 0);
         let goldReward = 15;
-        if (fightChoice) {
-          for (const o of (fightChoice.outcomes ?? [])) {
-            const r = o.result;
-            if (r?.type === 'gold_change' && (r.value ?? 0) > goldReward) goldReward = r.value;
-            if (r?.type === 'multi' && Array.isArray(r.results)) {
-              for (const sub of r.results) {
-                if (sub.type === 'gold_change' && (sub.value ?? 0) > goldReward) goldReward = sub.value;
-              }
-            }
-          }
-        }
-        // Find the worst HP loss for the "angered" outcome
         let worstHpLoss = -20;
         if (fightChoice) {
           for (const o of (fightChoice.outcomes ?? [])) {
             const r = o.result;
+            if (r?.type === 'gold_change' && (r.value ?? 0) > goldReward) goldReward = r.value;
             if (r?.type === 'hp_change' && (r.value ?? 0) < worstHpLoss) worstHpLoss = r.value;
             if (r?.type === 'multi' && Array.isArray(r.results)) {
               for (const sub of r.results) {
+                if (sub.type === 'gold_change' && (sub.value ?? 0) > goldReward) goldReward = sub.value;
+                if (sub.type === 'hp_change' && (sub.value ?? 0) < worstHpLoss) worstHpLoss = sub.value;
+              }
+            }
+          }
+        }
+
+        // Straw doll: permanent scare (no consume, 80% success)
+        if (hasStrawDoll) {
+          availableChoices.push({
+            text: `举起稻草人吓唬敌人 ${this._itemIcon('straw_doll')}`,
+            conditions: [],
+            outcomes: [
+              { probability: 0.8, result: { type: 'gold_change', value: goldReward, message: `稻草人的诡异外表吓跑了敌人！你捡起了它们掉落的金币。+${goldReward} 金币` } },
+              { probability: 0.2, result: { type: 'hp_change', value: Math.floor(worstHpLoss * 0.5), message: `敌人没被吓到，反而被激怒了！${Math.floor(worstHpLoss * 0.5)} HP` } },
+            ],
+            originalIndex: availableChoices.length,
+            conditionsMet: true,
+          });
+        }
+
+        // Balloon: consumable scare (70% success, stronger penalty on fail)
+        if (hasBalloon) {
+          availableChoices.push({
+            text: `扎破气球吓唬敌人（消耗气球） ${this._itemIcon('balloon')}`,
+            conditions: [],
+            outcomes: [
+              { probability: 0.7, result: { type: 'multi', results: [{ type: 'consume_item', itemId: 'balloon' }, { type: 'gold_change', value: goldReward }], message: `砰！巨大的爆炸声把敌人吓跑了！你捡起了它们掉落的金币。+${goldReward} 金币` } },
+              { probability: 0.3, result: { type: 'multi', results: [{ type: 'consume_item', itemId: 'balloon' }, { type: 'hp_change', value: Math.floor(worstHpLoss * 1.3) }], message: `砰！爆炸声激怒了敌人！它们发狂般地攻击你！${Math.floor(worstHpLoss * 1.3)} HP` } },
+            ],
+            originalIndex: availableChoices.length,
+            conditionsMet: true,
+          });
+        }
+      }
+    }
+
+    // Pharaoh codex: inject "劝降" option into combat events (30% chance to appear)
+    if (def.type === 'combat' && this._itemSystem) {
+      const effects = this._itemSystem.getActiveEffects();
+      if (effects.combatSurrenderChance > 0 && this._random() < effects.combatSurrenderChance) {
+        const fightChoice = availableChoices.find(c => c.originalIndex === 0);
+        let goldReward = 20;
+        let worstHpLoss = -25;
+        if (fightChoice) {
+          for (const o of (fightChoice.outcomes ?? [])) {
+            const r = o.result;
+            if (r?.type === 'gold_change' && (r.value ?? 0) > goldReward) goldReward = r.value;
+            if (r?.type === 'hp_change' && (r.value ?? 0) < worstHpLoss) worstHpLoss = r.value;
+            if (r?.type === 'multi' && Array.isArray(r.results)) {
+              for (const sub of r.results) {
+                if (sub.type === 'gold_change' && (sub.value ?? 0) > goldReward) goldReward = sub.value;
                 if (sub.type === 'hp_change' && (sub.value ?? 0) < worstHpLoss) worstHpLoss = sub.value;
               }
             }
           }
         }
         availableChoices.push({
-          text: '🎈 扎破气球吓唬敌人（消耗气球）',
+          text: `以法老之名劝降 ${this._itemIcon('pharaoh_codex')}`,
           conditions: [],
           outcomes: [
-            { probability: 0.7, result: { type: 'multi', results: [{ type: 'consume_item', itemId: 'balloon' }, { type: 'gold_change', value: goldReward }], message: `砰！巨大的爆炸声把敌人吓跑了！你捡起了它们掉落的金币。+${goldReward} 金币` } },
-            { probability: 0.3, result: { type: 'multi', results: [{ type: 'consume_item', itemId: 'balloon' }, { type: 'hp_change', value: Math.floor(worstHpLoss * 1.3) }], message: `砰！爆炸声激怒了敌人！它们发狂般地攻击你！${Math.floor(worstHpLoss * 1.3)} HP` } },
+            { probability: 0.7, result: { type: 'gold_change', value: goldReward, message: `敌人被法老法典的威严所震慑，放下武器投降了！你获得了它们的财物。+${goldReward} 金币` } },
+            { probability: 0.3, result: { type: 'hp_change', value: Math.floor(worstHpLoss * 1.5), message: `敌人不吃这一套！被激怒后发起了猛攻！${Math.floor(worstHpLoss * 1.5)} HP` } },
           ],
           originalIndex: availableChoices.length,
           conditionsMet: true,
@@ -165,10 +268,31 @@ export class EventSystem {
       }
     }
 
+    // Bribe: inject "花钱打发" option into bandit/combat events
+    if (def.type === 'combat' && this._itemSystem) {
+      const hasBribe = this._itemSystem.getActiveEffects().eventOptionUnlocks?.includes('bribe');
+      if (hasBribe) {
+        const bribeCost = def.deathWarning ? 40 : 20;
+        if ((this._playerState.gold ?? 0) >= bribeCost) {
+          availableChoices.push({
+            text: `花 ${bribeCost} 金币贿赂对方 ${this._itemIcon('diplomat_kit') || this._itemIcon('briefcase')}`,
+            conditions: [],
+            outcomes: [
+              { probability: 0.85, result: { type: 'gold_change', value: -bribeCost, message: `你掏出金币递了过去，对方收下后放你离开了。-${bribeCost} 金币` } },
+              { probability: 0.15, result: { type: 'multi', results: [{ type: 'gold_change', value: -bribeCost }, { type: 'hp_change', value: -10 }], message: `对方收了钱还是打了你一顿！-${bribeCost} 金币，-10 HP` } },
+            ],
+            originalIndex: availableChoices.length,
+            conditionsMet: true,
+          });
+        }
+      }
+    }
+
     // Earphone hint: small chance to mark a positive option (Task 8.4)
     if (this._itemSystem) {
       const effects = this._itemSystem.getActiveEffects();
       if (effects.earphoneHintChance > 0 && this._random() < effects.earphoneHintChance) {
+        const earphoneIcon = this._itemIcon('earphone') || '🎧';
         // Find a choice with positive outcomes and mark it
         for (const choice of availableChoices) {
           const outcomes = choice.outcomes ?? [];
@@ -179,8 +303,8 @@ export class EventSystem {
               (r.type === 'gold_change' && (r.value ?? 0) > 0) ||
               r.type === 'nothing');
           });
-          if (hasPositive && !choice.text.includes('🎧')) {
-            choice.text = choice.text + ' 🎧';
+          if (hasPositive && !choice.text.includes('🎧') && !choice.text.includes('earphone')) {
+            choice.text = choice.text + ' ' + earphoneIcon;
             break;
           }
         }
@@ -216,18 +340,33 @@ export class EventSystem {
       return { outcome: { type: 'nothing' }, choiceText: choice.text ?? '' };
     }
 
+    // Luck modifier: shift probability toward first (usually best) outcome
+    let luckMod = this._itemSystem ? (this._itemSystem.getActiveEffects().luckModifier ?? 0) : 0;
+    // NPC friendly: extra luck for non-combat events
+    if (this._itemSystem && this._itemSystem.getActiveEffects().npcFriendly && eventInstance.definition?.type !== 'combat') {
+      luckMod += 0.15;
+    }
+    let adjustedOutcomes = outcomes;
+    if (luckMod !== 0 && outcomes.length >= 2) {
+      adjustedOutcomes = outcomes.map((o, i) => {
+        const p = o.probability ?? 0;
+        if (i === 0) return { ...o, probability: Math.min(1, p + luckMod) };
+        return { ...o, probability: Math.max(0, p - luckMod / (outcomes.length - 1)) };
+      });
+    }
+
     // Roll probability
     const roll = this._random();
     let cumulative = 0;
-    for (const entry of outcomes) {
+    for (const entry of adjustedOutcomes) {
       cumulative += entry.probability ?? 0;
       if (roll < cumulative) {
         return { outcome: entry.result, choiceText: choice.text ?? '' };
       }
     }
 
-    // Fallback to last outcome (handles floating point edge cases)
-    return { outcome: outcomes[outcomes.length - 1].result, choiceText: choice.text ?? '' };
+    // Fallback to last outcome
+    return { outcome: adjustedOutcomes[adjustedOutcomes.length - 1].result, choiceText: choice.text ?? '' };
   }
 
   /**

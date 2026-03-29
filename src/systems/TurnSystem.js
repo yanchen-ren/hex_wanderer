@@ -351,11 +351,11 @@ export class TurnSystem {
   _rollItemOvernightEvent(tileData, effects, safetyReduction) {
     const terrainType = tileData?.terrain;
 
-    // Accordion + torch → campfire party (40% chance)
+    // Accordion + mega_torch (篝火) on grass/desert → campfire party (40% chance)
     const hasAccordion = this._itemSystem.hasActiveItem('accordion');
-    const hasTorch = this._itemSystem.hasActiveItem('torch') || this._itemSystem.hasActiveItem('mega_torch');
+    const hasMegaTorch = this._itemSystem.hasActiveItem('mega_torch');
 
-    if (hasAccordion && hasTorch) {
+    if (hasAccordion && hasMegaTorch && (terrainType === 'grass' || terrainType === 'desert')) {
       if (Math.random() < 0.4) {
         return 'overnight_campfire';
       }

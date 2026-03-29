@@ -54,7 +54,8 @@
       "allowedTerrains": ["grass", "desert", "forest"],
       "adjacencyConstraints": { "forbidden": [] },
       "triggerEvent": null,
-      "sprite": "assets/building/teleporter.png"
+      "spriteVariants": ["assets/building/teleporter-1.png", "assets/building/teleporter-2.png", "assets/building/teleporter-3.png", "assets/building/teleporter-4.png", "assets/building/teleporter-5.png"],
+      "sprite": "assets/building/teleporter-1.png"
     },
     "cave": {
       "name": "洞穴",

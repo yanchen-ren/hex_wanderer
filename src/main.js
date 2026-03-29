@@ -41,6 +41,12 @@ async function init() {
   const container = document.getElementById('game-container');
   if (!container) { console.error('Missing #game-container'); return; }
 
+  const setProgress = (pct, msg) => {
+    if (window.setLoadProgress) window.setLoadProgress(pct, msg);
+  };
+
+  setProgress(25, '初始化渲染引擎...');
+
   // 1. Create PixiJS Application
   pixiApp = new PIXI.Application({
     resizeTo: container,
@@ -48,8 +54,9 @@ async function init() {
     antialias: true,
   });
   container.appendChild(pixiApp.view);
-  // Ensure canvas fills container
   pixiApp.view.style.display = 'block';
+
+  setProgress(20, '加载配置文件...');
 
   // 2. Load all JSON configs
   const loader = new ConfigLoader();
@@ -57,17 +64,24 @@ async function init() {
     configs = await loader.loadAll();
   } catch (e) {
     console.error('Config load failed:', e);
-    container.innerHTML = `<div style="color:red;padding:20px;">配置加载失败: ${e.message}</div>`;
+    setProgress(100, `配置加载失败: ${e.message}`);
     return;
   }
+
+  setProgress(40, '加载素材...');
 
   // 3. Create shared EventBus
   eventBus = new EventBus();
 
   // 4. Initialize RenderEngine
   renderEngine = new RenderEngine(pixiApp, { hexSize: 18 });
-  await renderEngine.init(configs.terrain, configs.building);
+  await renderEngine.init(configs.terrain, configs.building, (loaded, total) => {
+    const pct = 40 + Math.floor((loaded / Math.max(total, 1)) * 40);
+    setProgress(pct, `加载素材 ${loaded}/${total}...`);
+  });
   renderEngine.setEventConfig(configs.event);
+
+  setProgress(85, '初始化界面...');
 
   // 5. Initialize UIManager
   uiManager = new UIManager(container, eventBus);
@@ -77,9 +91,20 @@ async function init() {
   inputHandler = new InputHandler(renderEngine, eventBus);
   inputHandler.init();
 
+  setProgress(95, '准备就绪...');
+
   // 6. Check for auto-save
   const saveSystem = new SaveSystem(GAME_VERSION);
   const savedState = saveSystem.loadAutoSave();
+
+  // Hide loading screen
+  setProgress(100, '加载完成');
+  const loadingScreen = document.getElementById('loading-screen');
+  if (loadingScreen) {
+    loadingScreen.style.transition = 'opacity 0.3s';
+    loadingScreen.style.opacity = '0';
+    setTimeout(() => loadingScreen.remove(), 300);
+  }
 
   if (savedState) {
     // Prompt: continue or new game

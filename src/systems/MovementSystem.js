@@ -131,6 +131,11 @@ export class MovementSystem {
   canMoveTo(from, to) {
     const toCfg = this._terrainTypes[to.terrain];
 
+    // 0. Void/impassable terrain — always blocked
+    if (toCfg?.impassable) {
+      return { allowed: false, reason: '无法通行' };
+    }
+
     // 1. Terrain required item check
     if (toCfg?.requiredItem) {
       if (!this._itemSystem.hasActiveItem(toCfg.requiredItem)) {

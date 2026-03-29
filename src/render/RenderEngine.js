@@ -82,6 +82,8 @@ export class RenderEngine {
       for (let col = 0; col < this.mapWidth; col++) {
         const tile = this.mapData.getTile(col, row);
         if (!tile) continue;
+        // Skip void tiles — no terrain rendering
+        if (tile.terrain === 'void') continue;
         const pos = hr.offsetToPixel(col, row, tile.elevation);
         const tt = this.terrainConfig?.terrainTypes?.[tile.terrain];
         const sp = this.assetLoader.resolveTerrainSprite(tt, tile.elevation, col, row);
@@ -147,7 +149,12 @@ export class RenderEngine {
           const isExplored = vis === 'explored';
           // Try building sprite from config, fall back to emoji
           const bDef = this.buildingConfig?.buildingTypes?.[tile.building];
-          const bSpritePath = bDef?.sprite;
+          // Teleporter: use variant sprite based on pair index
+          let bSpritePath = bDef?.sprite;
+          if (tile.building === 'teleporter' && bDef?.spriteVariants && tile.teleporterPairIndex != null) {
+            const idx = tile.teleporterPairIndex % bDef.spriteVariants.length;
+            bSpritePath = bDef.spriteVariants[idx];
+          }
           const bTex = bSpritePath ? this.assetLoader.getTexture(bSpritePath) : null;
           if (bTex) {
             const s = new PIXI.Sprite(bTex);
@@ -290,7 +297,10 @@ export class RenderEngine {
       if (!tile) continue;
       const pos = hr.offsetToPixel(col, row, tile.elevation);
       const bDef = this.buildingConfig?.buildingTypes?.[tile.building];
-      const bSpritePath = bDef?.sprite;
+      let bSpritePath = bDef?.sprite;
+      if (tile.building === 'teleporter' && bDef?.spriteVariants && tile.teleporterPairIndex != null) {
+        bSpritePath = bDef.spriteVariants[tile.teleporterPairIndex % bDef.spriteVariants.length];
+      }
       const bTex = bSpritePath ? this.assetLoader.getTexture(bSpritePath) : null;
       if (bTex) {
         const s = new PIXI.Sprite(bTex);

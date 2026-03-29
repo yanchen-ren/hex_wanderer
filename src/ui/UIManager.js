@@ -54,14 +54,14 @@ export class UIManager {
       { id: 'btn-path-cancel', label: '✖ 取消寻路', extra: 'bg-red-700 hover:bg-red-600 text-white hidden' },
       { id: 'btn-export', label: '💾 导出存档', extra: 'bg-gray-700 hover:bg-gray-600 text-gray-200' },
       { id: 'btn-import', label: '📂 导入存档', extra: 'bg-gray-700 hover:bg-gray-600 text-gray-200' },
-      { id: 'btn-center', label: '📍 居中玩家', extra: 'bg-gray-700 hover:bg-gray-600 text-gray-200' },
+      { id: 'btn-center', label: '<img src="assets/ui/player.png" style="width:14px;height:14px;vertical-align:middle;display:inline-block;margin-right:2px;"> 居中玩家', extra: 'bg-gray-700 hover:bg-gray-600 text-gray-200' },
     ];
 
     for (const b of buttons) {
       const btn = document.createElement('button');
       btn.id = b.id;
       btn.className = `${btnClass} ${b.extra}`;
-      btn.textContent = b.label;
+      btn.innerHTML = b.label;
       this._btnBar.appendChild(btn);
     }
 
@@ -221,7 +221,7 @@ export class UIManager {
 
   _showToast(message, duration = 2000) {
     if (!this._toastEl) return;
-    this._toastEl.textContent = message;
+    this._toastEl.innerHTML = message;
     this._toastEl.classList.remove('hidden');
     clearTimeout(this._toastTimer);
     this._toastTimer = setTimeout(() => {
@@ -255,7 +255,7 @@ export class UIManager {
     if (goBtn && cancelBtn) {
       if (data._hasPath && !data._autoMoving) {
         goBtn.classList.remove('hidden');
-        goBtn.textContent = data._pathRetained ? '🗺️ 继续出发' : '🗺️ 出发';
+        goBtn.innerHTML = data._pathRetained ? '🗺️ 继续出发' : '🗺️ 出发';
         cancelBtn.classList.remove('hidden');
       } else if (data._autoMoving) {
         goBtn.classList.add('hidden');

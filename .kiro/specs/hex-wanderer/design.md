@@ -1002,7 +1002,7 @@ RETURN { found: false, reason: '目标不可达' }
 | city.png | 城市 | ✅ 已生成 |
 | ruin.png | 遗迹 | ✅ 已生成 |
 | portal.png | 传送门 | ✅ 已生成 |
-| teleporter.png | 传送阵 | ✅ 已生成 |
+| teleporter-1~5.png | 传送阵（5种变体，配对使用） | ✅ 已生成 |
 | cave.png | 洞穴 | ✅ 已生成 |
 | farm.png | 农田 | ✅ 已生成 |
 | mine.png | 矿坑 | ✅ 已生成 |
@@ -1041,57 +1041,57 @@ RETURN { found: false, reason: '目标不可达' }
 | resurrection_cross.png | 重生十字架 | rare | ✅ 已生成 |
 | bomb.png | 炸弹 | uncommon | ✅ 已生成 |
 | garlic.png | 大蒜 | common | ✅ 已生成 |
-| wolfsbane.png | 狼毒草 | uncommon | ❌ 未生成 |
+| wolfsbane.png | 狼毒草 | uncommon | ✅ 已生成 |
 | smoke_bomb.png | 烟雾弹 | uncommon | ✅ 已生成 |
-| mystery_egg.png | 神秘蛋 | uncommon | ❌ 未生成 |
+| mystery_egg.png | 神秘蛋 | uncommon | ✅ 已生成 |
 | hunting_dog.png | 猎犬 | rare | ✅ 已生成 |
 | car.png | 越野车 | epic | ✅ 已生成 |
 | feather.png | 羽毛 | common | ✅ 已生成 |
 | sword.png | 长剑 | uncommon | ✅ 已生成 |
-| strange_gem.png | 奇异宝石 | uncommon | ❌ 未生成 |
+| strange_gem.png | 奇异宝石 | uncommon | ✅ 已生成 |
 | compass.png | 指南针 | uncommon | ✅ 已生成 |
 | old_scroll.png | 古老卷轴 | common | ✅ 已生成 |
 | blue_sweater.png | 蓝色毛衣 | common | ✅ 已生成 |
-| water_cup.png | 水杯 | common | ❌ 未生成 |
-| mask.png | 面具 | uncommon | ❌ 未生成 |
+| water_cup.png | 水杯 | common | ✅ 已生成 |
+| mask.png | 面具 | uncommon | ✅ 已生成 |
 | briefcase.png | 公文包 | uncommon | ✅ 已生成 |
 | shovel.png | 铲子 | common | ✅ 已生成 |
 | stick.png | 木棍 | common | ✅ 已生成 |
 | torch.png | 火把 | common | ✅ 已生成 |
 | pearl.png | 珍珠 | uncommon | ✅ 已生成 |
-| pharaoh_scepter.png | 法老权杖 | epic | ❌ 未生成 |
-| camper_van.png | 房车 | epic | ❌ 未生成 |
+| pharaoh_scepter.png | 法老权杖 | epic | ✅ 已生成 |
+| camper_van.png | 房车 | epic | ✅ 已生成 |
 | glider.png | 滑翔翼 | epic | ✅ 已生成 |
-| drill.png | 钻头 | rare | ❌ 未生成 |
-| mega_torch.png | 巨型火把 | rare | ❌ 未生成 |
-| master_sword.png | 大师之剑 | epic | ❌ 未生成 |
+| drill.png | 钻头 | rare | ✅ 已生成 |
+| mega_torch.png | 巨型火把 | rare | ✅ 已生成 |
+| master_sword.png | 大师之剑 | epic | ✅ 已生成 |
 | treasure_map.png | 藏宝图 | rare | ✅ 已生成 |
-| elixir.png | 万能药 | legendary | ❌ 未生成（合成道具） |
-| diplomat_kit.png | 外交官套装 | legendary | ❌ 未生成（合成道具） |
-| pharaoh_codex.png | 法老法典 | legendary | ❌ 未生成（合成道具） |
-| black_pearl.png | 黑珍珠号 | legendary | ❌ 未生成（合成道具） |
-| vest.png | 防弹衣 | uncommon | ❌ 未生成 |
-| chainmail.png | 锁子甲 | rare | ❌ 未生成 |
+| elixir.png | 万能药 | legendary | ✅ 已生成 |
+| diplomat_kit.png | 外交官套装 | legendary | ✅ 已生成 |
+| pharaoh_codex.png | 法老法典 | legendary | ✅ 已生成 |
+| black_pearl.png | 黑珍珠号 | legendary | ✅ 已生成 |
+| vest.png | 防弹衣 | uncommon | ✅ 已生成 |
+| chainmail.png | 锁子甲 | rare | ✅ 已生成 |
 | shield.png | 盾牌 | uncommon | ✅ 已生成 |
-| bio_suit.png | 防化服 | rare | ❌ 未生成 |
-| climbing_gloves.png | 攀岩手套 | uncommon | ❌ 未生成 |
-| witch_broom.png | 女巫扫帚 | epic | ❌ 未生成 |
-| fan.png | 扇子 | common | ❌ 未生成 |
-| earphone.png | 耳机 | uncommon | ❌ 未生成 |
+| bio_suit.png | 防化服 | rare | ✅ 已生成 |
+| climbing_gloves.png | 攀岩手套 | uncommon | ✅ 已生成 |
+| witch_broom.png | 女巫扫帚 | epic | ✅ 已生成 |
+| fan.png | 扇子 | common | ✅ 已生成 |
+| earphone.png | 耳机 | uncommon | ✅ 已生成 |
 | whip.png | 鞭子 | rare | ✅ 已生成 |
 | cowboy_hat.png | 牛仔帽 | uncommon | ✅ 已生成 |
-| straw_doll.png | 稻草人 | common | ❌ 未生成 |
-| thief_medal.png | 盗贼印记 | uncommon | ❌ 未生成 |
-| sheriff_badge.png | 治安官徽章 | uncommon | ❌ 未生成 |
+| straw_doll.png | 稻草人 | common | ✅ 已生成 |
+| thief_medal.png | 盗贼印记 | uncommon | ✅ 已生成 |
+| sheriff_badge.png | 治安官徽章 | uncommon | ✅ 已生成 |
 | hoe.png | 锄头 | common | ✅ 已生成 |
-| marigold.png | 金盏花 | common | ❌ 未生成 |
-| accordion.png | 手风琴 | uncommon | ❌ 未生成 |
-| magnet.png | 磁铁 | uncommon | ❌ 未生成 |
-| sickle.png | 镰刀 | common | ❌ 未生成 |
-| lava_core.png | 熔岩核心 | epic | ❌ 未生成 |
-| salted_fish.png | 咸鱼 | common | ❌ 未生成 |
-| beast_flute.png | 唤兽笛 | epic | ❌ 未生成 |
-| balloon.png | 气球 | common | ❌ 未生成 |
+| marigold.png | 金盏花 | common | ✅ 已生成 |
+| accordion.png | 手风琴 | uncommon | ✅ 已生成 |
+| magnet.png | 磁铁 | uncommon | ✅ 已生成 |
+| sickle.png | 镰刀 | common | ✅ 已生成 |
+| lava_core.png | 熔岩核心 | epic | ✅ 已生成 |
+| salted_fish.png | 咸鱼 | common | ✅ 已生成 |
+| beast_flute.png | 唤兽笛 | epic | ✅ 已生成 |
+| balloon.png | 气球 | common | ✅ 已生成 |
 
 #### UI 素材 (assets/ui/)
 
@@ -1101,6 +1101,14 @@ RETURN { found: false, reason: '目标不可达' }
 | event_marker.png | 事件标记（选择/通用事件） | ✅ 已生成 |
 | monster_marker.png | 怪物标记（战斗事件） | ✅ 已生成 |
 | treature_marker.png | 宝箱标记（宝箱/拾取事件） | ✅ 已生成 |
+| relic.png | 圣遗物碎片（HUD 显示用） | ✅ 已生成 |
+| gold.png | 金币（HUD 显示用） | ✅ 已生成 |
+| logo.png | 游戏 Logo（浏览器 favicon） | ✅ 已生成 |
+| debuff_poison.png | 中毒状态图标 | ✅ 已生成 |
+| debuff_frostbite.png | 冻伤状态图标 | ✅ 已生成 |
+| debuff_curse.png | 诅咒状态图标 | ✅ 已生成 |
+| debuff_bleed.png | 流血状态图标 | ✅ 已生成 |
+| debuff_vision.png | 视障状态图标 | ✅ 已生成 |
 
 #### 素材统计
 
@@ -1108,8 +1116,8 @@ RETURN { found: false, reason: '目标不可达' }
 |---|---|---|---|
 | 地形 | 11 | 11 | 0 |
 | 建筑 | 26 | 26 | 0 |
-| 道具 | 61 | 34 | 27 |
-| UI | 4 | 4 | 0 |
-| **合计** | **102** | **75** | **27** |
+| 道具 | 64 | 64 | 0 |
+| UI | 12 | 12 | 0 |
+| **合计** | **113** | **113** | **0** |
 
 ---

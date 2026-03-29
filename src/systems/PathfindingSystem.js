@@ -42,6 +42,9 @@ export class PathfindingSystem {
       if (!this._itemSystem.hasActiveItem(toCfg.requiredItem)) return false;
     }
 
+    // Impassable terrain (void)
+    if (toCfg?.impassable) return false;
+
     // From-terrain required item (exiting water needs boat)
     const fromCfg = this._movementSystem._terrainTypes[fromTile.terrain];
     if (fromCfg?.requiredItem) {

@@ -117,6 +117,7 @@ export class AssetLoader {
     if (buildingConfig?.buildingTypes) {
       for (const bc of Object.values(buildingConfig.buildingTypes)) {
         if (bc.sprite) paths.push(bc.sprite);
+        if (bc.spriteVariants) paths.push(...bc.spriteVariants);
       }
     }
 

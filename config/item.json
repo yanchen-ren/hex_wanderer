@@ -21,7 +21,7 @@
       "sprite": "assets/item/parachute.png"
     },
     "boat": {
-      "name": "船只",
+      "name": "船",
       "description": "结实的小船，允许在水域中航行",
       "quality": "uncommon",
       "effects": [
@@ -126,7 +126,7 @@
       "sprite": "assets/item/garlic.png"
     },
     "wolfsbane": {
-      "name": "狼毒药剂",
+      "name": "防狼喷雾",
       "description": "狼人事件解锁[全身而退]",
       "quality": "uncommon",
       "consumable": true,
@@ -166,7 +166,7 @@
       "sprite": "assets/item/hunting_dog.png"
     },
     "car": {
-      "name": "车",
+      "name": "越野车",
       "description": "AP上限+2，草地/荒漠AP消耗大幅降低",
       "quality": "rare",
       "effects": [
@@ -198,7 +198,7 @@
       "description": "坏运气选项概率降低10%",
       "quality": "rare",
       "effects": [
-        { "type": "luck_modifier", "value": -0.1 }
+        { "type": "luck_modifier", "value": 0.1 }
       ],
       "sprite": "assets/item/strange_gem.png"
     },
@@ -333,7 +333,7 @@
       "sprite": "assets/item/drill.png"
     },
     "mega_torch": {
-      "name": "巨型火炬",
+      "name": "篝火",
       "description": "视野+3，2格内寒冷伤害为0",
       "quality": "uncommon",
       "effects": [
@@ -451,7 +451,7 @@
       "sprite": "assets/item/climbing_gloves.png"
     },
     "witch_broom": {
-      "name": "魔女的扫帚",
+      "name": "飞天扫帚",
       "description": "所有地形AP消耗减少，免疫摔伤",
       "quality": "epic",
       "effects": [
@@ -461,7 +461,7 @@
       "sprite": "assets/item/witch_broom.png"
     },
     "fan": {
-      "name": "芭蕉扇",
+      "name": "扇子",
       "description": "迷雾/毒气中解锁[扇走]选项",
       "quality": "rare",
       "effects": [
@@ -508,7 +508,7 @@
       "sprite": "assets/item/straw_doll.png"
     },
     "thief_medal": {
-      "name": "盗贼勋章",
+      "name": "盗贼工具",
       "description": "战斗额外金币+免疫强盗，但城市过夜概率被抓",
       "quality": "uncommon",
       "effects": [

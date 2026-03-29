@@ -182,7 +182,11 @@ export class GameLoop {
       const toTile = this._getTileData(col, row);
       const check = this.movementSystem.canMoveTo(fromTile, toTile);
       let msg = `(${col},${row}) ${tile.terrain} 海拔${tile.elevation}`;
-      if (tile.building) msg += ` 🏗️${tile.building}`;
+      if (tile.building) {
+        const bDef = this.buildingSystem.getBuildingDef(tile.building);
+        const bIcon = bDef?.sprite ? `<img src="${bDef.sprite}" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;">` : '🏗️';
+        msg += ` ${bIcon}${bDef?.name || tile.building}`;
+      }
       if (tile.event && vis === 'visible') msg += ` ❓事件`;
       if (check.allowed) {
         const cost = this.movementSystem.calculateAPCost(fromTile, toTile);
@@ -209,7 +213,14 @@ export class GameLoop {
     );
 
     if (!result.found) {
-      this.eventBus.emit('ui:toast', `❌ ${result.reason}`);
+      let msg = `(${col},${row}) ${tile.terrain} 海拔${tile.elevation}`;
+      if (tile.building) {
+        const bDef = this.buildingSystem.getBuildingDef(tile.building);
+        const bIcon = bDef?.sprite ? `<img src="${bDef.sprite}" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;">` : '🏗️';
+        msg += ` ${bIcon}${bDef?.name || tile.building}`;
+      }
+      msg += ` | ❌ ${result.reason}`;
+      this.eventBus.emit('ui:toast', msg);
       this._clearPathState();
       return;
     }
@@ -224,8 +235,15 @@ export class GameLoop {
 
     const reachable = this._pathfindingSystem.getReachableIndex(result.stepCosts, this.playerState.ap);
     const reachableSteps = reachable + 1;
+    let tileMsg = `(${col},${row}) ${tile.terrain} 海拔${tile.elevation}`;
+    if (tile.building) {
+      const bDef = this.buildingSystem.getBuildingDef(tile.building);
+      const bIcon = bDef?.sprite ? `<img src="${bDef.sprite}" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;">` : '🏗️';
+      tileMsg += ` ${bIcon}${bDef?.name || tile.building}`;
+    }
+    if (tile.event && vis === 'visible') tileMsg += ` ❓事件`;
     this.eventBus.emit('ui:toast',
-      `🗺️ 路径: ${result.path.length} 步 | 总 AP: ${result.totalAP.toFixed(1)} | 本回合可走: ${reachableSteps} 步 👆再次点击出发`
+      `${tileMsg} | 🗺️ ${result.path.length}步 AP:${result.totalAP.toFixed(1)} 本回合:${reachableSteps}步 👆再次点击出发`
     );
   }
 
@@ -260,7 +278,7 @@ export class GameLoop {
 
     // Bleed damage notification
     if (result.bleedDamage > 0) {
-      this.eventBus.emit('ui:toast', `🩸 流血 -${result.bleedDamage} HP`);
+      this.eventBus.emit('ui:toast', `<img src="assets/ui/debuff_bleed.png" style="width:14px;height:14px;vertical-align:middle;display:inline-block;margin:0 2px;"> 流血 -${result.bleedDamage} HP`);
     }
 
     // Terrain enter damage
@@ -329,11 +347,12 @@ export class GameLoop {
 
     if (hasParachute) {
       // Show parachute choice dialog (Task 5.3)
+      const paraIcon = this._itemInline('parachute') || '🪂';
       const choiceIdx = await this.uiManager.dialog.showEvent({
         title: '⚠️ 即将摔伤！',
         description: `你从高处跌落，即将受到 ${damage} 点伤害！`,
         choices: [
-          { text: '🪂 使用降落伞（消耗）' },
+          { text: `使用降落伞（消耗） ${paraIcon}` },
           { text: '💪 硬扛' },
         ],
       });
@@ -342,7 +361,7 @@ export class GameLoop {
         // Use parachute — immune to damage, consume it
         this.itemSystem.consumeItem('parachute');
         await this.uiManager.dialog.showResult({
-          message: '🪂 降落伞展开，你安全着陆！',
+          message: `${paraIcon} 降落伞展开，你安全着陆！`,
           effects: ['降落伞已消耗'],
         });
         this._updateHUD();
@@ -366,7 +385,7 @@ export class GameLoop {
     // Build effects list for dialog
     const effects = [`💔 HP -${actualDamage}`];
     if (bleedApplied) {
-      effects.push('🩸 获得流血状态（1回合）');
+      effects.push('<img src="assets/ui/debuff_bleed.png" style="width:14px;height:14px;vertical-align:middle;display:inline-block;margin:0 2px;"> 获得流血状态（1回合）');
     }
 
     // Show fall damage result dialog (Task 5.2)
@@ -410,7 +429,7 @@ export class GameLoop {
           this.playerState.addStatusEffect({
             id: tc.statusOnEnter,
           });
-          this.eventBus.emit('ui:toast', `☠️ 获得状态: ${tc.statusOnEnter}`);
+          this.eventBus.emit('ui:toast', `<img src="assets/ui/debuff_poison.png" style="width:14px;height:14px;vertical-align:middle;display:inline-block;margin:0 2px;"> 获得状态: ${tc.statusOnEnter}`);
         }
       }
     }
@@ -524,7 +543,9 @@ export class GameLoop {
     }
 
     if (result.message && result.type !== 'win_condition' && result.type !== 'teleport' && result.type !== 'trigger_event' && result.type !== 'passive_ap_restore' && result.type !== 'random_teleport_water') {
-      this.eventBus.emit('ui:toast', `🏗️ ${result.message}`);
+      const bDef = this.buildingSystem.getBuildingDef(tile.building);
+      const bIcon = bDef?.sprite ? `<img src="${bDef.sprite}" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;">` : '🏗️';
+      this.eventBus.emit('ui:toast', `${bIcon} ${result.message}`);
     }
   }
 
@@ -582,11 +603,14 @@ export class GameLoop {
 
     // Antidote follow-up: if player got poisoned and has antidote, offer to use it
     if (this.playerState.hasStatusEffect('poison') && this.itemSystem.hasItem('antidote')) {
+      const antidoteDef = this.configs.item?.items?.['antidote'];
+      const antidoteIcon = antidoteDef?.sprite ? `<img src="${antidoteDef.sprite}" style="width:24px;height:24px;vertical-align:middle;display:inline-block;margin:0 4px;">` : '🧪';
+      const antidoteIconSmall = antidoteDef?.sprite ? `<img src="${antidoteDef.sprite}" style="width:18px;height:18px;vertical-align:middle;display:inline-block;margin:0 2px;">` : '🧪';
       const useAntidote = await this.uiManager.dialog.showEvent({
-        title: '🧪 解毒药',
+        title: `${antidoteIcon} 解毒药`,
         description: '你中毒了！你身上携带着解毒药，是否使用？',
         choices: [
-          { text: '使用解毒药（消耗）' },
+          { text: `${antidoteIconSmall} 使用解毒药（消耗）` },
           { text: '先不用' },
         ],
       });
@@ -595,7 +619,7 @@ export class GameLoop {
         this.playerState.removeStatusEffect('poison');
         await this.uiManager.dialog.showResult({
           message: '你服用了解毒药，毒素被清除了！',
-          effects: ['🧪 消耗: 解毒药', '✨ 解除状态: 中毒'],
+          effects: [`${antidoteIconSmall} 消耗: 解毒药`, '✨ 解除状态: 中毒'],
         });
       }
     }
@@ -729,7 +753,7 @@ export class GameLoop {
         this.playerState.gold += gold;
         await this.uiManager.dialog.showResult({
           message: `你已经拥有 ${itemName}，折算为金币`,
-          effects: [`🪙 +${gold} 金币`],
+          effects: [`${this._goldIcon()} +${gold} 金币`],
         });
       }
     }
@@ -757,16 +781,24 @@ export class GameLoop {
         const healed = this.playerState.heal(val);
         effects.push(`❤️ HP +${healed}`);
       } else if (val < 0) {
-        const { actualDamage } = this.playerState.applyDamage(Math.abs(val));
-        effects.push(`💔 HP -${actualDamage}`);
+        // Trap immunity check (shield)
+        const itemEffects = this.itemSystem.getActiveEffects();
+        const msg = outcome.message ?? '';
+        if (itemEffects.trapImmunity && (msg.includes('陷阱') || msg.includes('机关') || msg.includes('毒针'))) {
+          const shieldIcon = this._itemInline('shield') || '🛡️';
+          effects.push(`${shieldIcon} 盾牌挡住了陷阱！免疫伤害`);
+        } else {
+          const { actualDamage } = this.playerState.applyDamage(Math.abs(val));
+          effects.push(`💔 HP -${actualDamage}`);
 
-        // Hunting dog death chance after combat damage (Task 9.5)
-        if (actualDamage > 0 && this.itemSystem.hasItem('hunting_dog')) {
-          const dogDef = this.configs.item?.items?.['hunting_dog'];
-          const deathChance = dogDef?.deathChance ?? 0.2;
-          if (Math.random() < deathChance) {
-            this.itemSystem.consumeItem('hunting_dog');
-            effects.push('🐕 猎犬在战斗中牺牲了…');
+          // Hunting dog death chance after combat damage (Task 9.5)
+          if (actualDamage > 0 && this.itemSystem.hasItem('hunting_dog')) {
+            const dogDef = this.configs.item?.items?.['hunting_dog'];
+            const deathChance = dogDef?.deathChance ?? 0.2;
+            if (Math.random() < deathChance) {
+              this.itemSystem.consumeItem('hunting_dog');
+              effects.push(`${this._itemInline('hunting_dog') || '🐕'} 猎犬在战斗中牺牲了…`);
+            }
           }
         }
       }
@@ -811,16 +843,16 @@ export class GameLoop {
         const quality = def?.quality ?? 'common';
         const gold = Math.floor((qualityPrices[quality] ?? 10) * 0.5);
         this.playerState.gold += gold;
-        effects.push(`🪙 已拥有该道具，折算为 ${gold} 金币`);
+        effects.push(`${this._goldIcon()} 已拥有该道具，折算为 ${gold} 金币`);
       }
     }
 
     if (outcome.type === 'relic_fragment') {
       if (this.playerState.relicsCollected < 3) {
         this.playerState.relicsCollected += 1;
-        effects.push(`💎 圣物碎片 (${this.playerState.relicsCollected}/3)`);
+        effects.push(`<img src="assets/ui/relic.png" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;"> 圣物碎片 (${this.playerState.relicsCollected}/3)`);
       } else {
-        effects.push('💎 你已经收集了所有圣物碎片');
+        effects.push('<img src="assets/ui/relic.png" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;"> 你已经收集了所有圣物碎片');
       }
     }
 
@@ -831,7 +863,10 @@ export class GameLoop {
           id: outcome.statusId,
           duration: outcome.duration,
         });
-        effects.push(`☠️ 状态: ${outcome.statusId} (${outcome.duration}回合)`);
+        const debuffSpriteMap = { poison: 'debuff_poison', frostbite: 'debuff_frostbite', curse: 'debuff_curse', bleed: 'debuff_bleed' };
+        const debuffSprite = debuffSpriteMap[outcome.statusId];
+        const debuffIcon = debuffSprite ? `<img src="assets/ui/${debuffSprite}.png" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;">` : '☠️';
+        effects.push(`${debuffIcon} 状态: ${outcome.statusId} (${outcome.duration}回合)`);
       } else {
         effects.push(`🛡️ 免疫: ${outcome.statusId}`);
       }
@@ -847,7 +882,16 @@ export class GameLoop {
     }
 
     if (outcome.type === 'multi' && Array.isArray(outcome.results)) {
+      // Combat no damage on win (master_sword): if multi result has positive reward + hp_change negative, skip hp loss
+      const itemEffects = this.itemSystem.getActiveEffects();
+      const hasReward = outcome.results.some(r => r.type === 'item_reward' || r.type === 'gold_change' || r.type === 'relic_fragment');
+      const skipHpLoss = itemEffects.combatNoDamageOnWin && hasReward;
+
       for (const sub of outcome.results) {
+        if (skipHpLoss && sub.type === 'hp_change' && (sub.value ?? 0) < 0) {
+          effects.push(`${this._itemInline('master_sword') || '⚔️'} 大师之剑的力量让你毫发无伤！`);
+          continue;
+        }
         const subEffects = await this._applyEventOutcome(sub);
         effects.push(...subEffects);
       }
@@ -870,12 +914,12 @@ export class GameLoop {
     if (outcome.type === 'gold_change') {
       const val = outcome.value ?? 0;
       if (val < 0 && this.playerState.gold <= 0) {
-        effects.push('🪙 你身无分文，没有金币可以损失');
+        effects.push(`${this._goldIcon()} 你身无分文，没有金币可以损失`);
       } else {
         const before = this.playerState.gold;
         this.playerState.gold = Math.max(0, this.playerState.gold + val);
         const actual = this.playerState.gold - before;
-        effects.push(`🪙 金币 ${actual >= 0 ? '+' : ''}${actual}`);
+        effects.push(`${this._goldIcon()} 金币 ${actual >= 0 ? '+' : ''}${actual}`);
       }
     }
 
@@ -914,7 +958,7 @@ export class GameLoop {
       const itemId = outcome.itemId;
       if (this.itemSystem.consumeItem(itemId)) {
         const def = this.configs.item?.items?.[itemId];
-        effects.push(`🗑️ 消耗: ${def?.name || itemId}`);
+        effects.push(`${this._itemInline(itemId)} 消耗: ${def?.name || itemId}`);
       }
     }
 
@@ -935,7 +979,7 @@ export class GameLoop {
       const vpRow = this.playerState.position.r;
       this._updateFogOffset(vpCol, vpRow);
       this.renderEngine.updateFogLayer();
-      effects.push(`👁️ 永久视野 +${val}`);
+      effects.push(`<img src="assets/ui/debuff_vision.png" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;"> 永久视野 +${val}`);
     }
 
     if (outcome.type === 'vision_set') {
@@ -952,7 +996,7 @@ export class GameLoop {
       const vpRow = this.playerState.position.r;
       this._updateFogOffset(vpCol, vpRow);
       this.renderEngine.updateFogLayer();
-      effects.push(`👁️ 视野降至 ${val}（${duration}回合）`);
+      effects.push(`<img src="assets/ui/debuff_vision.png" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;"> 视野降至 ${val}（${duration}回合）`);
     }
 
     if (outcome.type === 'reset_combat_events') {
@@ -1021,7 +1065,7 @@ export class GameLoop {
         this.playerState.gold -= cost;
         const itemId = available[Math.floor(Math.random() * available.length)];
         if (this.itemSystem.addItem(itemId)) {
-          effects.push(`🪙 -${cost} 金币`);
+          effects.push(`${this._goldIcon()} -${cost} 金币`);
           effects.push(this._itemEffectMsg(itemId));
 
           // Check combinations after trade
@@ -1035,7 +1079,7 @@ export class GameLoop {
           }
         } else {
           // addItem failed (shouldn't happen since canAcquire passed, but safety)
-          effects.push(`🪙 交易失败，金币已退还`);
+          effects.push(`${this._goldIcon()} 交易失败，金币已退还`);
           this.playerState.gold += cost;
         }
       } else if (this.playerState.gold >= cost && available.length === 0) {
@@ -1044,10 +1088,10 @@ export class GameLoop {
         effects.push(`商人没有你需要的东西。「下次再来吧！」`);
         if (bonus > 0) {
           this.playerState.gold += bonus;
-          effects.push(`🪙 商人送了你 ${bonus} 金币作为补偿`);
+          effects.push(`${this._goldIcon()} 商人送了你 ${bonus} 金币作为补偿`);
         }
       } else if (this.playerState.gold < cost) {
-        effects.push(`🪙 金币不足（需要 ${cost}）`);
+        effects.push(`${this._goldIcon()} 金币不足（需要 ${cost}）`);
       }
     }
 
@@ -1061,8 +1105,8 @@ export class GameLoop {
         const qualityRewards = { common: 10, uncommon: 25, rare: 50, epic: 100, legendary: 200 };
         const goldReward = qualityRewards[quality] ?? 10;
         this.playerState.gold += goldReward;
-        effects.push(`🗑️ 献祭: ${def?.name || itemId}`);
-        effects.push(`🪙 获得 ${goldReward} 金币`);
+        effects.push(`${this._itemInline(itemId)} 献祭: ${def?.name || itemId}`);
+        effects.push(`${this._goldIcon()} 获得 ${goldReward} 金币`);
       }
     }
 
@@ -1079,7 +1123,7 @@ export class GameLoop {
         const giveDef = this.configs.item?.items?.[giveItem.itemId];
         const giveQuality = giveDef?.quality ?? 'common';
         this.itemSystem.consumeItem(giveItem.itemId);
-        effects.push(`🔄 交出: ${giveDef?.name || giveItem.itemId}`);
+        effects.push(`${this._itemInline(giveItem.itemId)} 交出: ${giveDef?.name || giveItem.itemId}`);
 
         // Pick a random item of same or adjacent quality to receive
         const allItems = Object.entries(this.configs.item?.items ?? {});
@@ -1104,7 +1148,7 @@ export class GameLoop {
           const qualityRewards = { common: 15, uncommon: 30, rare: 60, epic: 120 };
           const gold = qualityRewards[giveQuality] ?? 15;
           this.playerState.gold += gold;
-          effects.push(`🪙 旅行者没有合适的物品，给了你 ${gold} 金币`);
+          effects.push(`${this._goldIcon()} 旅行者没有合适的物品，给了你 ${gold} 金币`);
         }
       } else {
         effects.push('你没有可以交换的物品');
@@ -1233,7 +1277,7 @@ export class GameLoop {
   async _checkWinCondition(_col, _row) {
     if (this.playerState.relicsCollected < 3) {
       const remaining = 3 - this.playerState.relicsCollected;
-      this.eventBus.emit('ui:toast', `🌀 传送门需要 ${remaining} 块圣物碎片才能激活`);
+      this.eventBus.emit('ui:toast', `<img src="assets/building/portal.png" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;"> 传送门需要 ${remaining} 块圣物碎片才能激活`);
       return;
     }
 
@@ -1291,9 +1335,9 @@ export class GameLoop {
       if (ls.consumable) {
         this.itemSystem.consumeItem(ls.itemId);
       }
-      const emoji = ls.save.fullHeal ? '✝️' : '⛑️';
+      const itemIcon = this._itemInline(ls.itemId) || (ls.save.fullHeal ? '✝️' : '⛑️');
       await this.uiManager.dialog.showResult({
-        message: `${emoji} ${ls.def.name}救了你一命！`,
+        message: `${itemIcon} ${ls.def.name}救了你一命！`,
         effects: [
           ls.save.fullHeal ? 'HP 完全恢复' : 'HP 保留 1',
           ls.consumable ? `${ls.def.name}已消耗` : '',
@@ -1385,8 +1429,10 @@ export class GameLoop {
       }
     }
 
-    // Set new visible
+    // Set new visible (skip void tiles — always unexplored)
     for (const h of visibleTiles) {
+      const t = this.mapData.getTile(h.col, h.row);
+      if (t && t.terrain === 'void') continue;
       this.fogSystem._fogState.set(`${h.col},${h.row}`, 'visible');
     }
 
@@ -1447,7 +1493,7 @@ export class GameLoop {
     const directNbs = HexRenderer.offsetNeighbors(col, row);
     for (const nb of directNbs) {
       const nbTile = this.mapData.getTile(nb.col, nb.row);
-      if (!nbTile) continue;
+      if (!nbTile || nbTile.terrain === 'void') continue;
       const key = `${nb.col},${nb.row}`;
       const nbVP = vp - 1;
       visited.set(key, nbVP);
@@ -1479,7 +1525,7 @@ export class GameLoop {
       const nbs = HexRenderer.offsetNeighbors(cur.col, cur.row);
       for (const nb of nbs) {
         const nbTile = this.mapData.getTile(nb.col, nb.row);
-        if (!nbTile) continue;
+        if (!nbTile || nbTile.terrain === 'void') continue;
         const key = `${nb.col},${nb.row}`;
 
         const curTile = this.mapData.getTile(cur.col, cur.row);
@@ -1748,6 +1794,20 @@ export class GameLoop {
       return `${prefix}: <img src="${sprite}" style="width:24px;height:24px;vertical-align:middle;display:inline-block;margin:0 2px;"> ${name}`;
     }
     return `${prefix}: ${name}`;
+  }
+
+  /** Get inline item icon HTML (small, for effect messages) */
+  _itemInline(itemId, size = 20) {
+    const def = this.configs.item?.items?.[itemId];
+    if (def?.sprite) {
+      return `<img src="${def.sprite}" style="width:${size}px;height:${size}px;vertical-align:middle;display:inline-block;margin:0 2px;">`;
+    }
+    return '';
+  }
+
+  /** Get gold icon HTML */
+  _goldIcon(size = 16) {
+    return `<img src="assets/ui/gold.png" style="width:${size}px;height:${size}px;vertical-align:middle;display:inline-block;margin:0 1px;" onerror="this.outerHTML='🪙'">`;
   }
 
   _syncRender() {
