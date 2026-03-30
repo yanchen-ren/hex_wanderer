@@ -1,0 +1,13 @@
+{
+  "damageScaling": {
+    "startTurn": 30,
+    "interval": 15,
+    "incrementPercent": 10,
+    "maxDamageCap": 75
+  },
+  "priceScaling": {
+    "startTurn": 30,
+    "interval": 15,
+    "incrementPercent": 10
+  }
+}

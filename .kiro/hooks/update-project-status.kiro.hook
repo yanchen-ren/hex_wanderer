@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Update Project Status",
+  "description": "Manually trigger to update .kiro/specs/hex-wanderer/STATUS.md with changes made during this session.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Review the conversation and update .kiro/specs/hex-wanderer/STATUS.md to reflect any code changes, new features, bug fixes, or design decisions made. Only update if there were actual changes. Do not mention this step to the user."
+  }
+}

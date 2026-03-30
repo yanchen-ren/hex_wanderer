@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "Read Project Status",
+  "description": "Manually triggered: read .kiro/specs/hex-wanderer/STATUS.md to understand the current project state. Also auto-triggers when a new conversation starts from summary.",
+  "version": "1",
+  "when": {
+    "type": "userTriggered"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "Read the file .kiro/specs/hex-wanderer/STATUS.md to understand the current project state before responding. Do not mention this step to the user."
+  }
+}

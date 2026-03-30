@@ -31,12 +31,13 @@ export class ConfigLoader {
    * @returns {Promise<{terrain: object, building: object, item: object, event: object}>}
    */
   async loadAll() {
-    const [terrain, building, item, event] = await Promise.all([
+    const [terrain, building, item, event, difficulty] = await Promise.all([
       this.load('config/terrain.json'),
       this.load('config/building.json'),
       this.load('config/item.json'),
       this.load('config/event.json'),
+      this.load('config/difficulty.json'),
     ]);
-    return { terrain, building, item, event };
+    return { terrain, building, item, event, difficulty };
   }
 }

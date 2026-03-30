@@ -21,6 +21,7 @@ export class EventSystem {
     this._eventBus = eventBus;
     this._itemSystem = deps.itemSystem ?? null;
     this._rng = deps.rng ?? null;
+    this._difficultyConfig = deps.difficultyConfig ?? {};
   }
 
   /** Generate inline item icon HTML for choice text */
@@ -394,7 +395,14 @@ export class EventSystem {
           break;
         }
         case 'gold_cost': {
-          if ((playerState.gold ?? 0) < (cond.value ?? 0)) return false;
+          const cfg = this._difficultyConfig?.priceScaling ?? {};
+          const startTurn = cfg.startTurn ?? 30;
+          const interval = cfg.interval ?? 15;
+          const increment = (cfg.incrementPercent ?? 10) / 100;
+          const turn = playerState.turnNumber ?? 1;
+          const diffMult = turn < startTurn ? 1 : 1 + Math.floor((turn - startTurn) / interval + 1) * increment;
+          const scaledCost = Math.round((cond.value ?? 0) * diffMult);
+          if ((playerState.gold ?? 0) < scaledCost) return false;
           break;
         }
         case 'has_metal_item': {

@@ -169,7 +169,7 @@ async function startNewGame(saveSystem, forceSeed, forceSize) {
   const itemSystem = new ItemSystem(configs.item);
   const movementSystem = new MovementSystem(configs.terrain, itemSystem, playerState, { rng });
   const turnSystem = new TurnSystem(playerState, configs.terrain, itemSystem, eventBus);
-  const eventSystem = new EventSystem(configs.event, configs.terrain, configs.building, playerState, eventBus, { itemSystem, rng });
+  const eventSystem = new EventSystem(configs.event, configs.terrain, configs.building, playerState, eventBus, { itemSystem, rng, difficultyConfig: configs.difficulty });
   const fogSystem = new FogSystem(configs.terrain, playerState, itemSystem);
   const buildingSystem = new BuildingSystem(configs.building, eventBus);
 
@@ -210,7 +210,7 @@ async function startFromSave(savedState, saveSystem) {
 
   const movementSystem = new MovementSystem(configs.terrain, itemSystem, playerState, { rng });
   const turnSystem = new TurnSystem(playerState, configs.terrain, itemSystem, eventBus);
-  const eventSystem = new EventSystem(configs.event, configs.terrain, configs.building, playerState, eventBus, { itemSystem, rng });
+  const eventSystem = new EventSystem(configs.event, configs.terrain, configs.building, playerState, eventBus, { itemSystem, rng, difficultyConfig: configs.difficulty });
   const fogSystem = new FogSystem(configs.terrain, playerState, itemSystem);
   const buildingSystem = new BuildingSystem(configs.building, eventBus);
 

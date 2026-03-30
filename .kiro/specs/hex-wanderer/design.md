@@ -954,6 +954,31 @@ RETURN { found: false, reason: '目标不可达' }
 }
 ```
 
+### Difficulty_Config — 难度配置 (difficulty.json)
+
+```json
+{
+  "damageScaling": {
+    "startTurn": 30,
+    "interval": 15,
+    "incrementPercent": 10,
+    "maxDamageCap": 75
+  },
+  "priceScaling": {
+    "startTurn": 30,
+    "interval": 15,
+    "incrementPercent": 10
+  }
+}
+```
+
+- `damageScaling`: 战斗伤害递增。从 startTurn 回合开始，每 interval 回合伤害倍率 +incrementPercent%，缩放后上限 maxDamageCap HP
+- `priceScaling`: 商人物价递增。同公式，金币收入不变
+
+### 加载页面设计
+
+加载页面使用纯 HTML/CSS（不依赖 CDN），显示 12 个地块素材排成一排（11 种地形 + 传送门），玩家角色从左到右移动表示加载进度。CDN 依赖异步加载，失败时显示错误提示。
+
 ### 素材清单
 
 #### 素材规范

@@ -776,11 +776,16 @@ export class GameLoop {
     if (!outcome || outcome.type === 'nothing') return effects;
 
     if (outcome.type === 'hp_change') {
-      const val = outcome.value ?? 0;
+      let val = outcome.value ?? 0;
       if (val > 0) {
         const healed = this.playerState.heal(val);
         effects.push(`❤️ HP +${healed}`);
       } else if (val < 0) {
+        // Difficulty scaling: damage increases, capped by config
+        const maxDmgCap = this.configs.difficulty?.damageScaling?.maxDamageCap ?? 75;
+        const scaled = Math.max(val, -Math.min(maxDmgCap, Math.abs(val) * this._getDifficultyMultiplier()));
+        val = Math.round(scaled);
+
         // Trap immunity check (shield)
         const itemEffects = this.itemSystem.getActiveEffects();
         const msg = outcome.message ?? '';
@@ -1057,7 +1062,8 @@ export class GameLoop {
     }
 
     if (outcome.type === 'trade') {
-      const cost = outcome.goldCost ?? 0;
+      const baseCost = outcome.goldCost ?? 0;
+      const cost = Math.round(baseCost * this._getPriceMultiplier());
       const itemPool = outcome.itemPool ?? [];
       // Filter out items player already has or can't acquire
       const available = itemPool.filter(id => this.itemSystem.canAcquire(id));
@@ -1808,6 +1814,28 @@ export class GameLoop {
   /** Get gold icon HTML */
   _goldIcon(size = 16) {
     return `<img src="assets/ui/gold.png" style="width:${size}px;height:${size}px;vertical-align:middle;display:inline-block;margin:0 1px;" onerror="this.outerHTML='🪙'">`;
+  }
+
+  /** Difficulty multiplier for damage */
+  _getDifficultyMultiplier() {
+    const cfg = this.configs.difficulty?.damageScaling ?? {};
+    const startTurn = cfg.startTurn ?? 30;
+    const interval = cfg.interval ?? 15;
+    const increment = (cfg.incrementPercent ?? 10) / 100;
+    const turn = this.playerState.turnNumber ?? 1;
+    if (turn < startTurn) return 1;
+    return 1 + Math.floor((turn - startTurn) / interval + 1) * increment;
+  }
+
+  /** Difficulty multiplier for prices */
+  _getPriceMultiplier() {
+    const cfg = this.configs.difficulty?.priceScaling ?? {};
+    const startTurn = cfg.startTurn ?? 30;
+    const interval = cfg.interval ?? 15;
+    const increment = (cfg.incrementPercent ?? 10) / 100;
+    const turn = this.playerState.turnNumber ?? 1;
+    if (turn < startTurn) return 1;
+    return 1 + Math.floor((turn - startTurn) / interval + 1) * increment;
   }
 
   _syncRender() {
