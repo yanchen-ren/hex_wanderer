@@ -219,6 +219,9 @@ export class ItemSystem {
             break;
           case 'curse_immunity':
             result.curseImmunity = true;
+            if (!result.statusImmunities.includes('curse')) {
+              result.statusImmunities.push('curse');
+            }
             break;
           case 'overnight_safety':
             result.overnightSafety += eff.encounterReduction ?? 0;

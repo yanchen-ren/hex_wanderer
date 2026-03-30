@@ -28,6 +28,9 @@
       "allowedTerrains": ["any"],
       "title": "神秘宝箱",
       "description": "你在灌木丛中发现了一个布满灰尘的古老宝箱，锁已经锈蚀了。",
+      "terrainDescriptions": {
+        "water": "你发现一个古老的宝箱漂浮在水面上，锁已经锈蚀了。"
+      },
       "deathWarning": false,
       "choices": [
         {
@@ -73,7 +76,7 @@
         },
         {
           "text": "点燃火把驱赶",
-          "conditions": [{ "type": "has_item", "itemId": "tent" }],
+          "conditions": [{ "type": "has_item", "itemId": "torch" }],
           "outcomes": [
             { "probability": 0.9, "result": { "type": "nothing", "message": "火光吓退了狼群" } },
             { "probability": 0.1, "result": { "type": "hp_change", "value": -5, "message": "大部分狼被吓退，但一只胆大的咬了你一口" } }
@@ -438,7 +441,7 @@
           "text": "花40金币购买物品",
           "conditions": [{ "type": "gold_cost", "value": 40 }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "trade", "goldCost": 40, "itemPool": ["tent", "antidote", "leather_shoes", "telescope", "rope_claw", "briefcase", "accordion", "thief_medal"], "message": "你在摊位上买到了一件有用的物品" } }
+            { "probability": 1.0, "result": { "type": "trade", "goldCost": 40, "itemPool": ["tent", "antidote", "leather_shoes", "telescope", "rope_claw", "briefcase", "accordion", "thief_medal", "compass", "sword", "shield", "blue_sweater", "shovel", "fan", "stick", "balloon", "feather", "marigold", "sickle", "water_cup"], "message": "你在摊位上买到了一件有用的物品" } }
           ]
         },
         {
@@ -535,9 +538,9 @@
           "text": "全力战斗",
           "conditions": [],
           "outcomes": [
-            { "probability": 0.3, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -20 }, { "type": "item_reward", "itemPool": ["rope_claw", "parachute", "four_leaf_clover", "resurrection_cross"] }, { "type": "gold_change", "value": 40 }], "message": "你浴血奋战击败了怪物，在营地中找到了宝物和金币！-20 HP，+40 金币" } },
-            { "probability": 0.4, "result": { "type": "hp_change", "value": -35, "message": "你勉强击退了怪物，但伤势严重" } },
-            { "probability": 0.3, "result": { "type": "hp_change", "value": -50, "message": "怪物太强了，你几乎丧命！" } }
+            { "probability": 0.4, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -20 }, { "type": "item_reward", "itemPool": ["rope_claw", "parachute", "four_leaf_clover", "resurrection_cross"] }, { "type": "gold_change", "value": 40 }], "message": "你浴血奋战击败了怪物，在营地中找到了宝物和金币！-20 HP，+40 金币" } },
+            { "probability": 0.35, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -35 }, { "type": "gold_change", "value": 25 }], "message": "你勉强击退了怪物，伤势不轻，但搜到了一些金币。-35 HP，+25 金币" } },
+            { "probability": 0.25, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -50 }, { "type": "gold_change", "value": 15 }], "message": "怪物太强了，你险些丧命！好在营地里还有点金币。-50 HP，+15 金币" } }
           ]
         },
         {
@@ -545,7 +548,7 @@
           "conditions": [],
           "outcomes": [
             { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["tent", "antidote", "leather_shoes"], "message": "你悄悄拿走了一些物品后溜走了" } },
-            { "probability": 0.3, "result": { "type": "hp_change", "value": -25, "message": "你被发现了！怪物追上来攻击了你" } },
+            { "probability": 0.3, "result": { "type": "hp_change", "value": -35, "message": "你被发现了！怪物一拥而上，你拼死逃出" } },
             { "probability": 0.3, "result": { "type": "nothing", "message": "营地里什么值钱的东西都没有" } }
           ]
         },
@@ -564,6 +567,9 @@
       "allowedTerrains": ["any"],
       "title": "藏宝箱",
       "description": "一个精致的铁箱半埋在土中，上面刻着奇怪的纹章。",
+      "terrainDescriptions": {
+        "water": "一个精致的铁箱沉在浅水底，上面刻着奇怪的纹章。"
+      },
       "deathWarning": false,
       "choices": [
         {
@@ -1062,24 +1068,24 @@
       "deathWarning": false,
       "choices": [
         {
-          "text": "选择发光的宝石",
+          "text": "选择发光的物品",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "item_reward", "itemPool": ["strange_gem"], "message": "你获得了一颗诡异宝石！" } }
+            { "probability": 1.0, "result": { "type": "item_reward", "itemPool": ["strange_gem", "four_leaf_clover", "compass", "telescope", "pearl", "lava_core", "resurrection_cross"], "message": "蛋壳中浮现出一件闪闪发光的宝物！" } }
           ]
         },
         {
-          "text": "选择小瓶药水",
+          "text": "选择实用的物品",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "item_reward", "itemPool": ["antidote"], "message": "你获得了一瓶解毒药！" } }
+            { "probability": 1.0, "result": { "type": "item_reward", "itemPool": ["rope_claw", "fire_boots", "boat", "shield", "tent", "antidote", "bio_suit", "shovel"], "message": "蛋壳中出现了一件实用的装备！" } }
           ]
         },
         {
-          "text": "选择金色羽毛",
+          "text": "选择轻盈的物品",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "item_reward", "itemPool": ["feather"], "message": "你获得了一根轻盈的羽毛！" } }
+            { "probability": 1.0, "result": { "type": "item_reward", "itemPool": ["feather", "parachute", "balloon", "glider", "witch_broom", "fan", "earphone"], "message": "蛋壳中飘出一件轻盈的物品！" } }
           ]
         }
       ]
@@ -1170,7 +1176,7 @@
           "text": "花20金币购买物品",
           "conditions": [{ "type": "gold_cost", "value": 20 }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "trade", "goldCost": 20, "itemPool": ["antidote", "tent", "leather_shoes"], "message": "你从商人手中买到了一件物品" } }
+            { "probability": 1.0, "result": { "type": "trade", "goldCost": 20, "itemPool": ["antidote", "tent", "leather_shoes", "stick", "feather", "balloon", "blue_sweater", "marigold", "sickle", "water_cup"], "message": "你从商人手中买到了一件物品" } }
           ]
         },
         {
@@ -1468,7 +1474,7 @@
           "text": "花30金币购买",
           "conditions": [{ "type": "gold_cost", "value": 30 }],
           "outcomes": [
-            { "probability": 0.7, "result": { "type": "trade", "goldCost": 30, "itemPool": ["telescope", "tent", "antidote", "leather_shoes"], "message": "你从商人手中买到了一件物品" } },
+            { "probability": 0.7, "result": { "type": "trade", "goldCost": 30, "itemPool": ["telescope", "tent", "antidote", "leather_shoes", "rope_claw", "compass", "sword", "shield", "briefcase", "fan"], "message": "你从商人手中买到了一件物品" } },
             { "probability": 0.3, "result": { "type": "gold_change", "value": -30, "message": "商人是个黑心商人！他收了钱就消失在夜色中，什么也没留下！" } }
           ]
         },
@@ -1684,7 +1690,7 @@
           "text": "花30金币交易",
           "conditions": [{ "type": "gold_cost", "value": 30 }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "trade", "goldCost": 30, "itemPool": ["tent", "antidote", "leather_shoes", "rope_claw", "blue_sweater", "sickle"], "message": "你从路过的商人手中买到了一件物品" } }
+            { "probability": 1.0, "result": { "type": "trade", "goldCost": 30, "itemPool": ["tent", "antidote", "leather_shoes", "rope_claw", "blue_sweater", "sickle", "stick", "feather", "balloon", "shovel", "fan", "compass"], "message": "你从路过的商人手中买到了一件物品" } }
           ]
         },
         {
@@ -1878,7 +1884,7 @@
           "text": "献祭60 HP（获得史诗道具）",
           "conditions": [{ "type": "hp_above", "value": 60 }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -60 }, { "type": "item_reward", "itemPool": ["parachute", "fire_boots", "four_leaf_clover"] }], "message": "你几乎献出了全部生命力！祭坛爆发出耀眼的光芒，一件传说级宝物出现了！" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -60 }, { "type": "item_reward", "itemPool": ["witch_broom", "beast_flute", "four_leaf_clover", "resurrection_cross", "lava_core", "drill"] }], "message": "你几乎献出了全部生命力！祭坛爆发出耀眼的光芒，一件传说级宝物出现了！" } }
           ]
         },
         {
@@ -2063,22 +2069,26 @@
       "type": "choice",
       "allowedTerrains": ["desert"],
       "title": "巨像之手",
-      "description": "一只巨大的石手从沙漠中伸出，手指指向天空。这是远古巨像的遗迹，攀上手掌也许能看到很远的地方。石手的掌心刻着一个凹槽，似乎可以放入什么东西。",
+      "description": "一只巨大的石手从沙漠中伸出，手指指向天空。这是远古巨像的遗迹，攀上手掌也许能看到很远的地方。手指缝隙间似乎藏着一些东西。",
       "deathWarning": false,
       "choices": [
         {
-          "text": "攀爬巨像之手（-2 AP）",
-          "conditions": [{ "type": "ap_cost", "value": 2 }],
+          "text": "攀爬到顶（-3 AP）",
+          "conditions": [{ "type": "ap_cost", "value": 3 }],
           "outcomes": [
-            { "probability": 0.7, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -2 }, { "type": "reveal_map", "radius": 7 }], "message": "你艰难地爬上了巨像的手掌，站在指尖上俯瞰四方，远方的景色尽收眼底！" } },
-            { "probability": 0.3, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -2 }, { "type": "reveal_map", "radius": 7 }, { "type": "hp_change", "value": -10 }], "message": "你爬上了巨像之手，看到了壮观的景色！但下来时脚滑摔伤了。" } }
+            { "probability": 0.2, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -3 }, { "type": "reveal_map", "radius": 8 }], "message": "你艰难地爬上了巨像的指尖，站在最高处俯瞰四方，远方的景色尽收眼底！" } },
+            { "probability": 0.45, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -3 }, { "type": "hp_change", "value": 20 }], "message": "你爬上了巨像的手掌，高处的风景让你心旷神怡，疲惫一扫而空！" } },
+            { "probability": 0.25, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -3 }, { "type": "hp_change", "value": -15 }], "message": "你在攀爬时脚滑，从石手上摔了下来！" } },
+            { "probability": 0.1, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -3 }, { "type": "hp_change", "value": -20 }, { "type": "status_effect", "statusId": "bleed", "duration": 1 }], "message": "你从巨像上重重摔下，石块划伤了你的手臂，鲜血直流！" } }
           ]
         },
         {
-          "text": "在掌心冥想（需要诡异宝石）",
-          "conditions": [{ "type": "has_item", "itemId": "strange_gem" }],
+          "text": "搜索周围（-1 AP）",
+          "conditions": [{ "type": "ap_cost", "value": 1 }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "hp_max_change", "value": 5, "message": "你将诡异宝石放入凹槽，盘腿坐在掌心冥想。巨像的远古力量涌入你的身体，你的生命上限永久提升了！" } }
+            { "probability": 0.5, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -1 }, { "type": "item_reward", "itemPool": ["antidote", "balloon", "garlic", "water_cup", "feather"] }], "message": "你在巨像手指的缝隙间找到了一件物品！" } },
+            { "probability": 0.3, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -1 }, { "type": "gold_change", "value": 15 }], "message": "你在石手底部的沙子里翻到了一些金币。+15 金币" } },
+            { "probability": 0.2, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -1 }], "message": "你仔细搜索了一圈，什么也没找到。" } }
           ]
         },
         {
@@ -2101,8 +2111,8 @@
           "text": "投币购买（20金币）",
           "conditions": [{ "type": "gold_cost", "value": 20 }],
           "outcomes": [
-            { "probability": 0.6, "result": { "type": "multi", "results": [{ "type": "gold_change", "value": -20 }, { "type": "item_reward", "itemPool": ["antidote", "tent", "leather_shoes"] }], "message": "咔嗒一声，一件物品掉了出来！" } },
-            { "probability": 0.15, "result": { "type": "multi", "results": [{ "type": "gold_change", "value": -20 }, { "type": "item_reward", "itemPool": ["antidote", "tent"] }, { "type": "item_reward", "itemPool": ["leather_shoes", "antidote"] }], "message": "咔嗒咔嗒！机器抖了两下，掉出来两件物品！今天运气真好！" } },
+            { "probability": 0.6, "result": { "type": "multi", "results": [{ "type": "gold_change", "value": -20 }, { "type": "item_reward", "itemPool": ["antidote", "tent", "leather_shoes", "balloon", "feather", "stick", "blue_sweater", "marigold", "sickle", "water_cup"] }], "message": "咔嗒一声，一件物品掉了出来！" } },
+            { "probability": 0.15, "result": { "type": "multi", "results": [{ "type": "gold_change", "value": -20 }, { "type": "item_reward", "itemPool": ["antidote", "tent", "leather_shoes", "balloon", "feather", "stick"] }, { "type": "item_reward", "itemPool": ["blue_sweater", "marigold", "sickle", "water_cup", "shovel", "fan"] }], "message": "咔嗒咔嗒！机器抖了两下，掉出来两件物品！今天运气真好！" } },
             { "probability": 0.15, "result": { "type": "multi", "results": [{ "type": "gold_change", "value": -20 }], "message": "你听到机器内部咔嗒一声……然后就没有然后了。物品卡住了！你拍了拍机器，毫无反应。" } },
             { "probability": 0.1, "result": { "type": "multi", "results": [{ "type": "gold_change", "value": -10 }], "message": "投币后机器发出奇怪的声音，退回了一部分金币。净赚10金币！" } }
           ]
@@ -3127,14 +3137,14 @@
           "text": "交易A（30金币）",
           "conditions": [{ "type": "gold_cost", "value": 30 }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "trade", "goldCost": 30, "itemPool": ["tent", "antidote", "leather_shoes", "telescope"], "message": "你从商人手中买到了一件实用的物品。" } }
+            { "probability": 1.0, "result": { "type": "trade", "goldCost": 30, "itemPool": ["tent", "antidote", "leather_shoes", "telescope", "briefcase", "accordion", "stick", "feather", "balloon", "blue_sweater", "marigold", "sickle", "water_cup", "shovel", "fan"], "message": "你从商人手中买到了一件实用的物品。" } }
           ]
         },
         {
           "text": "交易B（50金币）",
           "conditions": [{ "type": "gold_cost", "value": 50 }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "trade", "goldCost": 50, "itemPool": ["rope_claw", "parachute", "sword"], "message": "你花了大价钱买到了一件珍贵的物品！" } }
+            { "probability": 1.0, "result": { "type": "trade", "goldCost": 50, "itemPool": ["rope_claw", "parachute", "sword", "shield", "compass", "fire_boots", "boat", "bio_suit", "whip", "cowboy_hat"], "message": "你花了大价钱买到了一件珍贵的物品！" } }
           ]
         },
         {

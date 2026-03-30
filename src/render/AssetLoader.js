@@ -93,12 +93,13 @@ export class AssetLoader {
   }
 
   /**
-   * Collect all sprite paths from terrain + building configs for preloading.
+   * Collect all sprite paths from terrain + building + item configs for preloading.
    * @param {object} terrainConfig - parsed terrain.json
    * @param {object} buildingConfig - parsed building.json
+   * @param {object} [itemConfig] - parsed item.json
    * @returns {string[]}
    */
-  static collectAssetPaths(terrainConfig, buildingConfig) {
+  static collectAssetPaths(terrainConfig, buildingConfig, itemConfig) {
     const paths = [];
 
     // Terrain sprites
@@ -121,8 +122,24 @@ export class AssetLoader {
       }
     }
 
-    // UI marker sprites
+    // Item sprites
+    if (itemConfig?.items) {
+      for (const item of Object.values(itemConfig.items)) {
+        if (item.sprite) paths.push(item.sprite);
+      }
+    }
+
+    // UI sprites (markers + debuffs + misc)
     paths.push(...Object.values(UI_MARKERS));
+    paths.push(
+      'assets/ui/gold.png',
+      'assets/ui/relic.png',
+      'assets/ui/debuff_poison.png',
+      'assets/ui/debuff_frostbite.png',
+      'assets/ui/debuff_curse.png',
+      'assets/ui/debuff_bleed.png',
+      'assets/ui/debuff_vision.png',
+    );
 
     return [...new Set(paths)];
   }

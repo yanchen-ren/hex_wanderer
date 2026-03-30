@@ -28,10 +28,10 @@ export class RenderEngine {
     this.fogEnabled = true;
     this._bakedTerrainTexture = null;
   }
-  async init(tc, bc, onProgress) {
+  async init(tc, bc, onProgress, itemConfig) {
     this.terrainConfig = tc;
     this.buildingConfig = bc;
-    const paths = AssetLoader.collectAssetPaths(tc, bc);
+    const paths = AssetLoader.collectAssetPaths(tc, bc, itemConfig);
     await this.assetLoader.preload(paths, onProgress);
     this.hexRenderer.buildTextureCache(tc, this.assetLoader);
     this.camera.bindInput(this.app.view);
@@ -109,7 +109,14 @@ export class RenderEngine {
     }
     const mw = hr.padX * 2 + SQRT3 * this.hexSize * this.mapWidth;
     const mh = hr.padY * 2 + 1.5 * this.hexSize * this.mapHeight;
-    const rt = PIXI.RenderTexture.create({ width: mw, height: mh, resolution: 2 });
+    // Clamp resolution so texture doesn't exceed GPU max texture size (mobile often 4096)
+    const gl = this.app.renderer.gl;
+    const maxTexSize = gl ? gl.getParameter(gl.MAX_TEXTURE_SIZE) : 4096;
+    let res = 2;
+    while (res > 1 && (mw * res > maxTexSize || mh * res > maxTexSize)) {
+      res -= 0.5;
+    }
+    const rt = PIXI.RenderTexture.create({ width: mw, height: mh, resolution: res });
     this.app.renderer.render(tmp, { renderTexture: rt });
     tmp.destroy({ children: true });
     this._bakedTerrainTexture = rt;

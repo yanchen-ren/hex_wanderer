@@ -37,9 +37,16 @@ export class PathfindingSystem {
     // We want all checks EXCEPT AP.
     const toCfg = this._movementSystem._terrainTypes[toTile.terrain];
 
-    // Terrain required item
+    // Terrain required item (also accepts terrain_pass effect)
     if (toCfg?.requiredItem) {
-      if (!this._itemSystem.hasActiveItem(toCfg.requiredItem)) return false;
+      const hasItem = this._itemSystem.hasActiveItem(toCfg.requiredItem);
+      if (!hasItem) {
+        const effects = this._itemSystem.getActiveEffects();
+        const hasPass = effects.terrainPass.some(
+          e => e.type === 'terrain_pass' && e.terrainType === toTile.terrain
+        );
+        if (!hasPass) return false;
+      }
     }
 
     // Impassable terrain (void)
@@ -48,7 +55,14 @@ export class PathfindingSystem {
     // From-terrain required item (exiting water needs boat)
     const fromCfg = this._movementSystem._terrainTypes[fromTile.terrain];
     if (fromCfg?.requiredItem) {
-      if (!this._itemSystem.hasActiveItem(fromCfg.requiredItem)) return false;
+      const hasItem = this._itemSystem.hasActiveItem(fromCfg.requiredItem);
+      if (!hasItem) {
+        const effects = this._itemSystem.getActiveEffects();
+        const hasPass = effects.terrainPass.some(
+          e => e.type === 'terrain_pass' && e.terrainType === fromTile.terrain
+        );
+        if (!hasPass) return false;
+      }
     }
 
     // Water elevation rule

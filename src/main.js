@@ -78,7 +78,7 @@ async function init() {
   await renderEngine.init(configs.terrain, configs.building, (loaded, total) => {
     const pct = 40 + Math.floor((loaded / Math.max(total, 1)) * 40);
     setProgress(pct, `加载素材 ${loaded}/${total}...`);
-  });
+  }, configs.item);
   renderEngine.setEventConfig(configs.event);
 
   setProgress(85, '初始化界面...');

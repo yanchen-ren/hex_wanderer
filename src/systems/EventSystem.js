@@ -180,10 +180,12 @@ export class EventSystem {
     }
 
     // Scare mechanic: straw_doll (permanent) and balloon (consumable)
-    if (def.type === 'combat' && this._itemSystem) {
+    // Skip for weather/natural events where scaring makes no sense
+    const _noScareEvents = ['blizzard', 'overnight_blizzard', 'monster_camp_battle'];
+    if (def.type === 'combat' && this._itemSystem && !_noScareEvents.includes(eventId)) {
       const effects = this._itemSystem.getActiveEffects();
       const scareChance = effects.scareChance ?? 0;
-      const difficultyMod = def.deathWarning ? 0.5 : 1.0;
+      const difficultyMod = def.deathWarning ? 0.75 : 1.0;
       const hasBalloon = this._itemSystem.hasActiveItem('balloon');
       const hasStrawDoll = this._itemSystem.hasActiveItem('straw_doll');
 
@@ -312,9 +314,14 @@ export class EventSystem {
       }
     }
 
+    // Terrain-specific description override
+    const terrain = tileData?.terrain;
+    const terrainDesc = terrain && def.terrainDescriptions?.[terrain];
+    const finalDef = terrainDesc ? { ...def, description: terrainDesc } : def;
+
     return {
       eventId,
-      definition: def,
+      definition: finalDef,
       availableChoices,
     };
   }

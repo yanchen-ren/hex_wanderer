@@ -136,26 +136,38 @@ export class MovementSystem {
       return { allowed: false, reason: '无法通行' };
     }
 
-    // 1. Terrain required item check
+    // 1. Terrain required item check (also accepts terrain_pass effect for that terrain)
     if (toCfg?.requiredItem) {
-      if (!this._itemSystem.hasActiveItem(toCfg.requiredItem)) {
-        return {
-          allowed: false,
-          reason: `需要 ${toCfg.requiredItem} 才能进入 ${toCfg.name ?? to.terrain}`,
-          requiredItem: toCfg.requiredItem,
-        };
+      const hasItem = this._itemSystem.hasActiveItem(toCfg.requiredItem);
+      if (!hasItem) {
+        const hasPass = this._itemSystem.getActiveEffects().terrainPass.some(
+          e => e.type === 'terrain_pass' && e.terrainType === to.terrain
+        );
+        if (!hasPass) {
+          return {
+            allowed: false,
+            reason: `需要 ${toCfg.requiredItem} 才能进入 ${toCfg.name ?? to.terrain}`,
+            requiredItem: toCfg.requiredItem,
+          };
+        }
       }
     }
 
     // Also check from-terrain required item (exiting water needs boat)
     const fromCfg = this._terrainTypes[from.terrain];
     if (fromCfg?.requiredItem) {
-      if (!this._itemSystem.hasActiveItem(fromCfg.requiredItem)) {
-        return {
-          allowed: false,
-          reason: `需要 ${fromCfg.requiredItem} 才能离开 ${fromCfg.name ?? from.terrain}`,
-          requiredItem: fromCfg.requiredItem,
-        };
+      const hasItem = this._itemSystem.hasActiveItem(fromCfg.requiredItem);
+      if (!hasItem) {
+        const hasPass = this._itemSystem.getActiveEffects().terrainPass.some(
+          e => e.type === 'terrain_pass' && e.terrainType === from.terrain
+        );
+        if (!hasPass) {
+          return {
+            allowed: false,
+            reason: `需要 ${fromCfg.requiredItem} 才能离开 ${fromCfg.name ?? from.terrain}`,
+            requiredItem: fromCfg.requiredItem,
+          };
+        }
       }
     }
 

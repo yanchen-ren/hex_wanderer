@@ -307,8 +307,8 @@ export class GameLoop {
     if (tile.building) {
       const bKey = `${col},${row}`;
       const bDef = this.buildingSystem.getBuildingDef(tile.building);
-      // Skip building event if already triggered this turn (cooldown)
-      if (bDef?.triggerEvent && this._buildingEventsTriggeredThisTurn.has(bKey)) {
+      // Skip building event if already triggered this turn (cooldown) or consumed
+      if (bDef?.triggerEvent && (this._buildingEventsTriggeredThisTurn.has(bKey) || tile._buildingEventConsumed)) {
         buildingHandledEvent = true; // skip both building and tile event
       } else {
         await this._handleBuilding(tile, col, row);
@@ -495,6 +495,12 @@ export class GameLoop {
     if (result.type === 'trigger_event' && result.eventId) {
       const eventTile = { ...tile, event: result.eventId };
       await this._handleTileEvent(eventTile, col, row);
+      // For non-repeatable buildings, mark event as consumed so it won't trigger again
+      const bDef = this.buildingSystem.getBuildingDef(tile.building);
+      if (bDef && !bDef.repeatable) {
+        const actualTile = this.mapData.getTile(col, row);
+        if (actualTile) actualTile._buildingEventConsumed = true;
+      }
     }
 
     // --- Passive AP restore (spring) ---
@@ -587,7 +593,8 @@ export class GameLoop {
     const outcome = eventResult.outcome;
 
     // Apply outcome
-    const effectMessages = await this._applyEventOutcome(outcome);
+    const isCombat = def.type === 'combat';
+    const effectMessages = await this._applyEventOutcome(outcome, { isCombat });
 
     // Show result dialog — skip for "nothing" outcomes with no message (v1.2 Task 1.4)
     const resultMsg = outcome.message || '';
@@ -771,7 +778,7 @@ export class GameLoop {
     this._updateHUD();
   }
 
-  async _applyEventOutcome(outcome) {
+  async _applyEventOutcome(outcome, opts = {}) {
     const effects = [];
     if (!outcome || outcome.type === 'nothing') return effects;
 
@@ -779,7 +786,7 @@ export class GameLoop {
       let val = outcome.value ?? 0;
       if (val > 0) {
         const healed = this.playerState.heal(val);
-        effects.push(`❤️ HP +${healed}`);
+        if (healed > 0) effects.push(`❤️ HP +${healed}`);
       } else if (val < 0) {
         // Difficulty scaling: damage increases, capped by config
         const maxDmgCap = this.configs.difficulty?.damageScaling?.maxDamageCap ?? 75;
@@ -857,7 +864,10 @@ export class GameLoop {
         this.playerState.relicsCollected += 1;
         effects.push(`<img src="assets/ui/relic.png" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;"> 圣物碎片 (${this.playerState.relicsCollected}/3)`);
       } else {
-        effects.push('<img src="assets/ui/relic.png" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;"> 你已经收集了所有圣物碎片');
+        // Already collected all fragments — convert to gold
+        const goldBonus = 50;
+        this.playerState.gold += goldBonus;
+        effects.push(`<img src="assets/ui/relic.png" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;"> 碎片化为金光 ${this._goldIcon()} +${goldBonus} 金币`);
       }
     }
 
@@ -887,10 +897,10 @@ export class GameLoop {
     }
 
     if (outcome.type === 'multi' && Array.isArray(outcome.results)) {
-      // Combat no damage on win (master_sword): if multi result has positive reward + hp_change negative, skip hp loss
+      // Combat no damage on win (master_sword): 30% chance, only in combat events
       const itemEffects = this.itemSystem.getActiveEffects();
       const hasReward = outcome.results.some(r => r.type === 'item_reward' || r.type === 'gold_change' || r.type === 'relic_fragment');
-      const skipHpLoss = itemEffects.combatNoDamageOnWin && hasReward;
+      const skipHpLoss = opts.isCombat && itemEffects.combatNoDamageOnWin && hasReward && Math.random() < 0.3;
 
       for (const sub of outcome.results) {
         if (skipHpLoss && sub.type === 'hp_change' && (sub.value ?? 0) < 0) {
@@ -905,7 +915,11 @@ export class GameLoop {
     if (outcome.type === 'hp_max_change') {
       const val = outcome.value ?? 0;
       this.playerState.hpMax += val;
-      if (val > 0) this.playerState.heal(val);
+      if (val > 0) {
+        this.playerState.heal(val);
+      } else if (this.playerState.hp > this.playerState.hpMax) {
+        this.playerState.hp = this.playerState.hpMax;
+      }
       effects.push(`💪 HP上限 ${val > 0 ? '+' : ''}${val}`);
     }
 
@@ -1008,33 +1022,28 @@ export class GameLoop {
       let resetCount = 0;
       const allTiles = this.mapData.getAllTiles();
       const eventDefs = this.configs.event?.events ?? {};
-      for (const tile of allTiles) {
-        if (!tile.event) {
-          // Check if this tile originally had a combat event that was consumed
-          // We can't restore consumed events, but we can re-place combat events on empty explored tiles
-          continue;
-        }
-      }
-      // Reset: re-enable combat events that were cleared (tile.event set to null)
-      // Actually, we mark tiles that had combat events cleared — but we don't track that.
-      // Instead, re-place some combat events on explored empty tiles
+      // Collect combat events grouped by terrain compatibility
+      const combatEvents = Object.entries(eventDefs)
+        .filter(([, d]) => d.type === 'combat')
+        .map(([id, d]) => ({ id, terrains: d.allowedTerrains ?? [] }));
+
       for (const tile of allTiles) {
         if (tile.event || tile.building) continue;
+        if (tile.terrain === 'void') continue;
         const vis = this.fogSystem.getTileVisibility(tile.q, tile.r);
         if (vis === 'unexplored') continue;
-        // Small chance to place a combat event
-        if (Math.random() < 0.1) {
-          const terrainDef = this.configs.terrain?.terrainTypes?.[tile.terrain];
-          const weights = terrainDef?.eventWeights;
-          if (weights && weights.combat > 0) {
-            // Pick a combat event
-            const combatEvents = Object.entries(eventDefs)
-              .filter(([, d]) => d.type === 'combat')
-              .map(([id]) => id);
-            if (combatEvents.length > 0) {
-              tile.event = combatEvents[Math.floor(Math.random() * combatEvents.length)];
-              resetCount++;
-            }
+        const terrainDef = this.configs.terrain?.terrainTypes?.[tile.terrain];
+        const weights = terrainDef?.eventWeights;
+        if (!weights || weights.combat <= 0) continue;
+        // 30% chance to place a combat event
+        if (Math.random() < 0.3) {
+          // Filter events compatible with this terrain
+          const compatible = combatEvents.filter(e =>
+            e.terrains.includes(tile.terrain) || e.terrains.includes('any') || e.terrains.includes('any_land')
+          );
+          if (compatible.length > 0) {
+            tile.event = compatible[Math.floor(Math.random() * compatible.length)].id;
+            resetCount++;
           }
         }
       }
@@ -1149,6 +1158,16 @@ export class GameLoop {
           const [receiveId, receiveDef] = candidates[Math.floor(Math.random() * candidates.length)];
           this.itemSystem.addItem(receiveId);
           effects.push(this._itemEffectMsg(receiveId));
+
+          // Check combinations after exchange
+          const combo = this.itemSystem.checkCombinations();
+          if (combo.combined) {
+            const resultDef = this.configs.item?.items?.[combo.result];
+            const matADef = this.configs.item?.items?.[combo.consumed[0]];
+            const matBDef = this.configs.item?.items?.[combo.consumed[1]];
+            effects.push(`🔀 ${matADef?.name || combo.consumed[0]} + ${matBDef?.name || combo.consumed[1]} → ${resultDef?.name || combo.result}`);
+            this._pendingCombination = combo;
+          }
         } else {
           // No suitable item to give — compensate with gold
           const qualityRewards = { common: 15, uncommon: 30, rare: 60, epic: 120 };
