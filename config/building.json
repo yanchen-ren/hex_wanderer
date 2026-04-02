@@ -16,6 +16,7 @@
       "allowedTerrains": ["grass", "forest", "desert"],
       "adjacencyConstraints": { "forbidden": ["monster_camp"] },
       "triggerEvent": "camp_rest_event",
+      "repeatable": true,
       "restApBonus": 2,
       "restHpBonus": 10,
       "sprite": "assets/building/camp.png"
@@ -27,6 +28,7 @@
       "allowedTerrains": ["grass", "desert"],
       "adjacencyConstraints": { "forbidden": ["monster_camp", "whirlpool"] },
       "triggerEvent": "city_market",
+      "repeatable": true,
       "sprite": "assets/building/city.png"
     },
     "ruin": {
@@ -109,6 +111,7 @@
       "allowedTerrains": ["grass", "desert"],
       "adjacencyConstraints": { "forbidden": ["monster_camp"] },
       "triggerEvent": "church_prayer",
+      "repeatable": true,
       "sprite": "assets/building/church.png"
     },
     "watchtower": {
@@ -127,7 +130,6 @@
       "allowedTerrains": ["water"],
       "adjacencyConstraints": { "forbidden": [] },
       "triggerEvent": "reef_event",
-      "repeatable": true,
       "sprite": "assets/building/reef.png"
     },
     "training_ground": {
@@ -215,7 +217,6 @@
       "allowedTerrains": ["desert"],
       "adjacencyConstraints": { "forbidden": [] },
       "triggerEvent": "colossus_hand_event",
-      "repeatable": true,
       "sprite": "assets/building/colossus_hand.png"
     },
     "vending_machine": {

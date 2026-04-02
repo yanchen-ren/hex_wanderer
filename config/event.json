@@ -11,7 +11,10 @@
           "text": "仔细阅读石碑上的其他文字",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": 5 }, { "type": "gold_change", "value": 15 }], "message": "石碑散发出温暖的光芒，你感到精力充沛。石碑底部藏着几枚金币！+5 HP，+15 金币。提示：点击相邻地块可以移动，不同地形消耗不同的行动力（AP）。注意海拔变化带来的风险！" } }
+            { "probability": 0.85, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": 5 }, { "type": "gold_change", "value": 15 }], "message": "石碑散发出温暖的光芒，你感到精力充沛。石碑底部藏着几枚金币！+5 HP，+15 金币。提示：点击相邻地块可以移动，不同地形消耗不同的行动力（AP）。注意海拔变化带来的风险！" } },
+            { "probability": 0.05, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": 5 }, { "type": "gold_change", "value": 15 }, { "type": "vision_permanent", "value": 1 }], "message": "石碑散发出耀眼的光芒！你感到视野变得异常清晰。+5 HP，+15 金币，视野永久+1" } },
+            { "probability": 0.05, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": 5 }, { "type": "gold_change", "value": 15 }, { "type": "hp_max_change", "value": 10 }], "message": "石碑散发出炽热的光芒！一股力量涌入你的身体。+5 HP，+15 金币，HP上限永久+10" } },
+            { "probability": 0.05, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": 5 }, { "type": "gold_change", "value": 15 }, { "type": "ap_max_change", "value": 1 }], "message": "石碑散发出清凉的光芒！你感到步伐变得更加轻盈。+5 HP，+15 金币，AP上限永久+1" } }
           ]
         },
         {
@@ -267,8 +270,9 @@
           "text": "友好地打招呼",
           "conditions": [],
           "outcomes": [
-            { "probability": 0.6, "result": { "type": "hp_change", "value": 20, "message": "精灵用魔法治愈了你的伤口" } },
-            { "probability": 0.4, "result": { "type": "vision_bonus_temp", "value": 2, "duration": 5, "message": "精灵赐予你森林之眼" } }
+            { "probability": 0.5, "result": { "type": "hp_change", "value": 20, "message": "精灵用魔法治愈了你的伤口" } },
+            { "probability": 0.05, "result": { "type": "vision_bonus_temp", "value": 2, "duration": 5, "message": "精灵赐予你森林之眼" } },
+            { "probability": 0.45, "result": { "type": "nothing", "message": "精灵微笑着看了你一眼，然后消失在了光芒中" } }
           ]
         },
         {
@@ -1683,7 +1687,7 @@
           "text": "休息恢复",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": 10 }, { "type": "remove_status", "statusId": "poison" }, { "type": "remove_status", "statusId": "bleed" }], "message": "你在营地休息了一会儿，恢复了体力，伤口也得到了处理。HP+10，解除中毒和流血" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": 10 }, { "type": "remove_status", "statusId": "poison" }, { "type": "remove_status", "statusId": "bleed" }], "message": "你在营地休息了一会儿，恢复了体力，伤口也得到了处理。HP+10" } }
           ]
         },
         {
@@ -1713,7 +1717,7 @@
           "text": "祈祷（消耗1 AP）",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -1 }, { "type": "remove_status", "statusId": "curse" }, { "type": "remove_status", "statusId": "bleed" }], "message": "神圣的力量流过你的身体，诅咒和流血被解除了！" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -1 }, { "type": "remove_status", "statusId": "curse" }, { "type": "remove_status", "statusId": "bleed" }], "message": "神圣的力量流过你的身体，你感到一阵宁静。" } }
           ]
         },
         {
@@ -2018,7 +2022,7 @@
           "text": "坐下休息",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "remove_status", "statusId": "poison" }, { "type": "remove_status", "statusId": "bleed" }, { "type": "hp_change", "value": 100 }, { "type": "reset_combat_events" }], "message": "篝火的温暖治愈了你的伤痛，中毒和流血状态已清除，生命完全恢复。但你隐约感到远方传来了怪物的咆哮……" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "remove_status", "statusId": "poison" }, { "type": "remove_status", "statusId": "bleed" }, { "type": "hp_change", "value": 100 }, { "type": "reset_combat_events" }], "message": "篝火的温暖治愈了你的伤痛，生命完全恢复。但你隐约感到远方传来了怪物的咆哮……" } }
           ]
         },
         {
@@ -2759,7 +2763,7 @@
           "text": "祭拜古树",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "remove_status", "statusId": "poison", "message": "你虔诚地在古树前祈祷，一股净化之力流过你的身体，中毒状态被解除了。" } }
+            { "probability": 1.0, "result": { "type": "remove_status", "statusId": "poison", "message": "你虔诚地在古树前祈祷，一股净化之力流过你的身体。" } }
           ]
         },
         {
@@ -2782,15 +2786,17 @@
           "text": "戳破气泡",
           "conditions": [],
           "outcomes": [
-            { "probability": 0.6, "result": { "type": "status_effect", "statusId": "poison", "duration": 3, "message": "气泡破裂，一股浓烈的毒气喷涌而出！你中毒了！" } },
-            { "probability": 0.4, "result": { "type": "nothing", "message": "气泡破裂了，里面只是普通的沼气，虚惊一场。" } }
+            { "probability": 0.5, "result": { "type": "status_effect", "statusId": "poison", "duration": 3, "message": "气泡破裂，一股浓烈的毒气喷涌而出！你中毒了！" } },
+            { "probability": 0.35, "result": { "type": "nothing", "message": "气泡破裂了，里面只是普通的沼气，虚惊一场。" } },
+            { "probability": 0.15, "result": { "type": "multi", "results": [{ "type": "status_effect", "statusId": "poison", "duration": 2 }, { "type": "item_reward", "itemPool": ["strange_gem", "antidote", "pearl"] }], "message": "气泡破裂时喷出了毒气，但你在泥浆中发现了一件宝物！中毒2回合" } }
           ]
         },
         {
           "text": "用火把点燃",
           "conditions": [{ "type": "has_item", "itemId": "torch" }],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -15 }, { "type": "item_reward", "itemPool": ["strange_gem", "four_leaf_clover"] }], "message": "轰！沼气被点燃引发了爆炸！你被冲击波震伤，但爆炸炸出了泥底的宝物！-15 HP" } }
+            { "probability": 0.6, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": -15 }, { "type": "item_reward", "itemPool": ["strange_gem", "four_leaf_clover", "pearl", "pharaoh_scepter"] }], "message": "轰！沼气被点燃引发了爆炸！你被冲击波震伤，但爆炸炸出了泥底的宝物！-15 HP" } },
+            { "probability": 0.4, "result": { "type": "hp_change", "value": -15, "message": "轰！沼气被点燃引发了爆炸！你被冲击波震伤，但什么也没炸出来。-15 HP" } }
           ]
         },
         {
@@ -2813,7 +2819,7 @@
           "text": "交易（20金币）",
           "conditions": [{ "type": "gold_cost", "value": 20 }],
           "outcomes": [
-            { "probability": 0.5, "result": { "type": "multi", "results": [{ "type": "gold_change", "value": -20 }, { "type": "remove_status", "statusId": "poison" }, { "type": "remove_status", "statusId": "curse" }], "message": "巫婆从锅中舀出一碗药汤让你喝下，你感到身上的不适消失了。解除所有负面状态！" } },
+            { "probability": 0.5, "result": { "type": "multi", "results": [{ "type": "gold_change", "value": -20 }, { "type": "remove_status", "statusId": "poison" }, { "type": "remove_status", "statusId": "curse" }], "message": "巫婆从锅中舀出一碗药汤让你喝下，你感到身上的不适消失了。" } },
             { "probability": 0.5, "result": { "type": "trade", "goldCost": 20, "itemPool": ["antidote", "tent", "stick"], "message": "巫婆从柜子里翻出一件物品递给你。" } }
           ]
         },
@@ -3666,30 +3672,6 @@
       ]
     },
 
-    "cardboard_box": {
-      "type": "choice",
-      "allowedTerrains": ["any_land"],
-      "title": "纸箱子",
-      "description": "路边放着一个大纸箱子，上面印着一个感叹号。看起来刚好能容纳一个人。",
-      "deathWarning": false,
-      "choices": [
-        {
-          "text": "躲入",
-          "conditions": [],
-          "outcomes": [
-            { "probability": 1.0, "result": { "type": "nothing", "message": "你蹲进纸箱里，感觉自己完美地融入了环境。下次遇到巡逻或强盗时应该能100%避战……大概吧。「！」" } }
-          ]
-        },
-        {
-          "text": "离开",
-          "conditions": [],
-          "outcomes": [
-            { "probability": 1.0, "result": { "type": "nothing" } }
-          ]
-        }
-      ]
-    },
-
     "pokeball": {
       "type": "choice",
       "allowedTerrains": ["any_land"],
@@ -3725,7 +3707,7 @@
           "text": "摆出姿势 \\\\[T]/",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": 20 }, { "type": "remove_status", "statusId": "curse" }], "message": "太阳的光辉洒满全身！你感到前所未有的力量涌入体内，所有诅咒都被净化了！赞美太阳！\\\\[T]/ AP回满，诅咒解除！" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": 20 }, { "type": "remove_status", "statusId": "curse" }, { "type": "remove_status", "statusId": "poison" }, { "type": "remove_status", "statusId": "bleed" }, { "type": "remove_status", "statusId": "frostbite" }], "message": "太阳的光辉洒满全身！你感到前所未有的力量涌入体内！赞美太阳！\\\\[T]/ AP回满！" } }
           ]
         },
         {
@@ -3845,7 +3827,7 @@
           "text": "献花致敬",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -1 }, { "type": "remove_status", "statusId": "curse" }, { "type": "remove_status", "statusId": "bleed" }], "message": "你在墓前默哀片刻，献上一朵野花。一股温暖的力量流过你的身体，诅咒和流血都被解除了。-1 AP" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": -1 }, { "type": "remove_status", "statusId": "curse" }, { "type": "remove_status", "statusId": "bleed" }], "message": "你在墓前默哀片刻，献上一朵野花。一股温暖的力量流过你的身体。-1 AP" } }
           ]
         },
         {
@@ -4005,7 +3987,7 @@
           "text": "来一杯",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": 3 }, { "type": "status_effect", "statusId": "frostbite", "duration": 4 }], "message": "浓缩咖啡的力量！你瞬间精神百倍！+3 AP。但几分钟后你开始手抖……咖啡因过量了。（疲劳效果4回合）" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "ap_change", "value": 3 }, { "type": "random_debuff", "duration": 4 }], "message": "浓缩咖啡的力量！你瞬间精神百倍！+3 AP。但几分钟后你开始感到不适……咖啡因过量了。（随机负面效果4回合）" } }
           ]
         },
         {
@@ -4209,7 +4191,7 @@
           "text": "休息恢复",
           "conditions": [],
           "outcomes": [
-            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": 12 }, { "type": "remove_status", "statusId": "poison" }, { "type": "remove_status", "statusId": "bleed" }], "message": "村民为你准备了热饭和干净的床铺，你恢复了不少体力。HP+12，解除中毒和流血" } }
+            { "probability": 1.0, "result": { "type": "multi", "results": [{ "type": "hp_change", "value": 12 }, { "type": "remove_status", "statusId": "poison" }, { "type": "remove_status", "statusId": "bleed" }], "message": "村民为你准备了热饭和干净的床铺，你恢复了不少体力。HP+12" } }
           ]
         },
         {

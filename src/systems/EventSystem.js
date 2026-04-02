@@ -181,35 +181,35 @@ export class EventSystem {
 
     // Scare mechanic: straw_doll (permanent) and balloon (consumable)
     // Skip for weather/natural events where scaring makes no sense
-    const _noScareEvents = ['blizzard', 'overnight_blizzard', 'monster_camp_battle'];
+    const _noScareEvents = ['blizzard', 'overnight_blizzard', 'monster_camp_battle', 'sandstorm', 'sea_storm', 'lava_eruption'];
     if (def.type === 'combat' && this._itemSystem && !_noScareEvents.includes(eventId)) {
-      const effects = this._itemSystem.getActiveEffects();
-      const scareChance = effects.scareChance ?? 0;
       const difficultyMod = def.deathWarning ? 0.75 : 1.0;
       const hasBalloon = this._itemSystem.hasActiveItem('balloon');
       const hasStrawDoll = this._itemSystem.hasActiveItem('straw_doll');
 
-      if (scareChance > 0 && (hasBalloon || hasStrawDoll) && this._random() < scareChance * difficultyMod) {
-        // Calculate rewards/penalties from fight outcomes
-        const fightChoice = availableChoices.find(c => c.originalIndex === 0);
-        let goldReward = 15;
-        let worstHpLoss = -20;
-        if (fightChoice) {
-          for (const o of (fightChoice.outcomes ?? [])) {
-            const r = o.result;
-            if (r?.type === 'gold_change' && (r.value ?? 0) > goldReward) goldReward = r.value;
-            if (r?.type === 'hp_change' && (r.value ?? 0) < worstHpLoss) worstHpLoss = r.value;
-            if (r?.type === 'multi' && Array.isArray(r.results)) {
-              for (const sub of r.results) {
-                if (sub.type === 'gold_change' && (sub.value ?? 0) > goldReward) goldReward = sub.value;
-                if (sub.type === 'hp_change' && (sub.value ?? 0) < worstHpLoss) worstHpLoss = sub.value;
-              }
+      // Calculate rewards/penalties from fight outcomes (shared by both scare options)
+      const fightChoice = availableChoices.find(c => c.originalIndex === 0);
+      let goldReward = 15;
+      let worstHpLoss = -20;
+      if (fightChoice) {
+        for (const o of (fightChoice.outcomes ?? [])) {
+          const r = o.result;
+          if (r?.type === 'gold_change' && (r.value ?? 0) > goldReward) goldReward = r.value;
+          if (r?.type === 'hp_change' && (r.value ?? 0) < worstHpLoss) worstHpLoss = r.value;
+          if (r?.type === 'multi' && Array.isArray(r.results)) {
+            for (const sub of r.results) {
+              if (sub.type === 'gold_change' && (sub.value ?? 0) > goldReward) goldReward = sub.value;
+              if (sub.type === 'hp_change' && (sub.value ?? 0) < worstHpLoss) worstHpLoss = sub.value;
             }
           }
         }
+      }
 
-        // Straw doll: permanent scare (no consume, 80% success)
-        if (hasStrawDoll) {
+      // Straw doll: independent roll using its own scare_chance (0.1)
+      if (hasStrawDoll) {
+        const strawDollDef = (this._itemSystem._itemDefs ?? {})['straw_doll'];
+        const strawDollChance = strawDollDef?.effects?.find(e => e.type === 'scare_chance')?.value ?? 0.1;
+        if (this._random() < strawDollChance * difficultyMod) {
           availableChoices.push({
             text: `举起稻草人吓唬敌人 ${this._itemIcon('straw_doll')}`,
             conditions: [],
@@ -221,9 +221,13 @@ export class EventSystem {
             conditionsMet: true,
           });
         }
+      }
 
-        // Balloon: consumable scare (70% success, stronger penalty on fail)
-        if (hasBalloon) {
+      // Balloon: independent roll using its own scare_chance (0.6)
+      if (hasBalloon) {
+        const balloonDef = (this._itemSystem._itemDefs ?? {})['balloon'];
+        const balloonChance = balloonDef?.effects?.find(e => e.type === 'scare_chance')?.value ?? 0.6;
+        if (this._random() < balloonChance * difficultyMod) {
           availableChoices.push({
             text: `扎破气球吓唬敌人（消耗气球） ${this._itemIcon('balloon')}`,
             conditions: [],
@@ -271,8 +275,9 @@ export class EventSystem {
       }
     }
 
-    // Bribe: inject "花钱打发" option into bandit/combat events
-    if (def.type === 'combat' && this._itemSystem) {
+    // Bribe: inject "花钱打发" option into bandit/combat events (skip natural disasters)
+    const _noBribeEvents = ['blizzard', 'overnight_blizzard', 'sandstorm', 'sea_storm', 'lava_eruption'];
+    if (def.type === 'combat' && this._itemSystem && !_noBribeEvents.includes(eventId)) {
       const hasBribe = this._itemSystem.getActiveEffects().eventOptionUnlocks?.includes('bribe');
       if (hasBribe) {
         const bribeCost = def.deathWarning ? 40 : 20;
@@ -441,6 +446,11 @@ export class EventSystem {
         }
         case 'hp_above': {
           if (playerState.hp <= (cond.value ?? 0)) return false;
+          break;
+        }
+        case 'ap_cost': {
+          // Check if player has enough AP to pay the cost
+          if ((playerState.ap ?? 0) < (cond.value ?? 0)) return false;
           break;
         }
         default:

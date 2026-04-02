@@ -512,8 +512,13 @@ export class GameLoop {
         } else {
           this.playerState.ap = Math.min(this.playerState.apMax, this.playerState.ap + apRestore);
         }
-        this.eventBus.emit('ui:toast', `🌊 ${result.message}`);
         this._updateHUD();
+        const bDef = this.buildingSystem.getBuildingDef(tile.building);
+        const springIcon = bDef?.sprite ? `<img src="${bDef.sprite}" style="width:24px;height:24px;vertical-align:middle;display:inline-block;margin:0 4px;">` : '💧';
+        await this.uiManager.dialog.showResult({
+          message: result.message || '清澈的泉水让你恢复了精力',
+          effects: [result.fullRestore ? `⚡ AP 完全恢复` : `⚡ AP +${apRestore}`],
+        });
       }
     }
 
@@ -608,26 +613,49 @@ export class GameLoop {
       });
     }
 
-    // Antidote follow-up: if player got poisoned and has antidote, offer to use it
-    if (this.playerState.hasStatusEffect('poison') && this.itemSystem.hasItem('antidote')) {
-      const antidoteDef = this.configs.item?.items?.['antidote'];
-      const antidoteIcon = antidoteDef?.sprite ? `<img src="${antidoteDef.sprite}" style="width:24px;height:24px;vertical-align:middle;display:inline-block;margin:0 4px;">` : '🧪';
-      const antidoteIconSmall = antidoteDef?.sprite ? `<img src="${antidoteDef.sprite}" style="width:18px;height:18px;vertical-align:middle;display:inline-block;margin:0 2px;">` : '🧪';
-      const useAntidote = await this.uiManager.dialog.showEvent({
-        title: `${antidoteIcon} 解毒药`,
-        description: '你中毒了！你身上携带着解毒药，是否使用？',
-        choices: [
-          { text: `${antidoteIconSmall} 使用解毒药（消耗）` },
-          { text: '先不用' },
-        ],
-      });
-      if (useAntidote === 0) {
-        this.itemSystem.consumeItem('antidote');
-        this.playerState.removeStatusEffect('poison');
-        await this.uiManager.dialog.showResult({
-          message: '你服用了解毒药，毒素被清除了！',
-          effects: [`${antidoteIconSmall} 消耗: 解毒药`, '✨ 解除状态: 中毒'],
+    // Elixir / Antidote follow-up: if player got poisoned, offer to use elixir (priority) or antidote
+    if (this.playerState.hasStatusEffect('poison')) {
+      const hasElixir = this.itemSystem.hasActiveItem('elixir');
+      const hasAntidote = this.itemSystem.hasItem('antidote');
+      if (hasElixir) {
+        const elixirDef = this.configs.item?.items?.['elixir'];
+        const elixirIcon = elixirDef?.sprite ? `<img src="${elixirDef.sprite}" style="width:24px;height:24px;vertical-align:middle;display:inline-block;margin:0 4px;">` : '✨';
+        const elixirIconSmall = elixirDef?.sprite ? `<img src="${elixirDef.sprite}" style="width:18px;height:18px;vertical-align:middle;display:inline-block;margin:0 2px;">` : '✨';
+        const useElixir = await this.uiManager.dialog.showEvent({
+          title: `${elixirIcon} 万灵药`,
+          description: '你中毒了！万灵药可以立即清除所有负面状态，是否使用？（万灵药不会被消耗）',
+          choices: [
+            { text: `${elixirIconSmall} 使用万灵药` },
+            { text: '先不用' },
+          ],
         });
+        if (useElixir === 0) {
+          this.playerState.clearAllDebuffs?.();
+          await this.uiManager.dialog.showResult({
+            message: '万灵药的力量净化了你的身体，所有负面状态被清除！',
+            effects: ['✨ 解除所有负面状态'],
+          });
+        }
+      } else if (hasAntidote) {
+        const antidoteDef = this.configs.item?.items?.['antidote'];
+        const antidoteIcon = antidoteDef?.sprite ? `<img src="${antidoteDef.sprite}" style="width:24px;height:24px;vertical-align:middle;display:inline-block;margin:0 4px;">` : '🧪';
+        const antidoteIconSmall = antidoteDef?.sprite ? `<img src="${antidoteDef.sprite}" style="width:18px;height:18px;vertical-align:middle;display:inline-block;margin:0 2px;">` : '🧪';
+        const useAntidote = await this.uiManager.dialog.showEvent({
+          title: `${antidoteIcon} 解毒药`,
+          description: '你中毒了！你身上携带着解毒药，是否使用？',
+          choices: [
+            { text: `${antidoteIconSmall} 使用解毒药（消耗）` },
+            { text: '先不用' },
+          ],
+        });
+        if (useAntidote === 0) {
+          this.itemSystem.consumeItem('antidote');
+          this.playerState.removeStatusEffect('poison');
+          await this.uiManager.dialog.showResult({
+            message: '你服用了解毒药，毒素被清除了！',
+            effects: [`${antidoteIconSmall} 消耗: 解毒药`, '✨ 解除状态: 中毒'],
+          });
+        }
       }
     }
 
@@ -887,6 +915,23 @@ export class GameLoop {
       }
     }
 
+    if (outcome.type === 'random_debuff') {
+      const debuffPool = ['poison', 'frostbite', 'curse', 'bleed'];
+      const immunities = this.itemSystem.getActiveEffects().statusImmunities;
+      const available = debuffPool.filter(d => !immunities.includes(d));
+      if (available.length > 0) {
+        const picked = available[Math.floor(Math.random() * available.length)];
+        const duration = outcome.duration ?? 4;
+        this.playerState.addStatusEffect({ id: picked, duration });
+        const debuffSpriteMap = { poison: 'debuff_poison', frostbite: 'debuff_frostbite', curse: 'debuff_curse', bleed: 'debuff_bleed' };
+        const debuffSprite = debuffSpriteMap[picked];
+        const debuffIcon = debuffSprite ? `<img src="assets/ui/${debuffSprite}.png" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;">` : '☠️';
+        effects.push(`${debuffIcon} 状态: ${picked} (${duration}回合)`);
+      } else {
+        effects.push(`🛡️ 免疫了所有负面效果`);
+      }
+    }
+
     if (outcome.type === 'reveal_map') {
       const radius = outcome.radius || 5;
       const pCol = this.playerState.position.q;
@@ -985,9 +1030,8 @@ export class GameLoop {
       const statusId = outcome.statusId;
       if (this.playerState.removeStatusEffect(statusId)) {
         effects.push(`✨ 解除状态: ${statusId}`);
-      } else {
-        effects.push(`✨ 无需解除: ${statusId}`);
       }
+      // If player doesn't have the status, silently skip — no message needed
     }
 
     if (outcome.type === 'vision_permanent') {
