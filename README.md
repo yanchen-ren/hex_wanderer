@@ -12,8 +12,11 @@
 # 需要任意 HTTP 服务器（ES Module 不支持 file:// 协议）
 python3 -m http.server 8080
 
-# 浏览器打开
+# 浏览器打开游戏
 open http://localhost:8080
+
+# 打开地图编辑器
+open http://localhost:8080/editor.html
 ```
 
 ## 技术栈
@@ -27,6 +30,7 @@ open http://localhost:8080
 
 ```
 ├── index.html          # 游戏入口
+├── editor.html         # 地图编辑器入口
 ├── config/             # JSON 数据配置
 │   ├── terrain.json    # 地形类型
 │   ├── building.json   # 建筑类型
@@ -38,6 +42,7 @@ open http://localhost:8080
 │   ├── systems/        # 游戏系统（移动/回合/事件/迷雾/道具/建筑/存档）
 │   ├── render/         # 渲染层（RenderEngine, Camera, HexRenderer）
 │   ├── ui/             # UI（HUD, DialogManager, UIManager）
+│   ├── editor/         # 地图编辑器（EditorMain, EditorState, EditorTools, EditorUI 等）
 │   └── utils/          # 工具（SeededRandom, SimplexNoise, HexMath）
 ├── assets/             # 素材资源
 │   ├── terrain/        # 地形素材
@@ -46,6 +51,8 @@ open http://localhost:8080
 │   └── ui/             # UI 素材
 ├── tests/              # 测试
 │   ├── index.html      # 浏览器端测试运行器
+│   ├── unit/           # 单元测试
+│   ├── property/       # 属性测试（fast-check）
 │   ├── map-preview.html # 地图预览工具
 │   └── asset-preview.html # 素材预览工具
 └── .kiro/specs/        # 需求/设计/任务文档
@@ -62,6 +69,25 @@ open http://localhost:8080
 
 ## 开发工具
 
-- `tests/index.html` — 单元测试运行器
+- `tests/index.html` — 单元测试 + 属性测试运行器
 - `tests/map-preview.html` — 地图生成预览（可交互）
 - `tests/asset-preview.html` — 素材预览
+
+## 地图编辑器
+
+打开 `editor.html` 进入可视化地图编辑器，支持：
+
+- 地形绘制（8 种地形 + 笔刷大小 1/2/3）
+- 海拔调整（升高/降低/直接设置 0-10）
+- 建筑放置（自动校验地形约束、portal/teleporter 特殊逻辑）
+- 事件配置（手动放置 + 运行时自动生成密度配置）
+- 圣物事件放置（守护者/祭坛/试炼）
+- 玩家起始位置设置
+- 撤销/重做（Ctrl+Z / Ctrl+Shift+Z，最多 50 步）
+- 地图验证（portal、圣物、可达性、建筑约束、teleporter 配对）
+- 地图库管理（localStorage 保存/加载/删除）
+- 文件导入导出（.hexmap.json 格式）
+- 随机生成辅助（基于种子生成后手动微调）
+- 响应式布局（桌面端 + 移动端适配）
+
+编辑好的地图可以在游戏新游戏界面通过「从地图库选择」或「导入地图文件」加载使用。

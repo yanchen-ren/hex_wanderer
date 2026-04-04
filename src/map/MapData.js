@@ -22,6 +22,8 @@ export class MapData {
     this._tiles = new Map();
     /** @type {Array<{q:number, r:number}>} */
     this.relicPositions = [];
+    /** @type {number} Number of relics needed to win */
+    this.relicsNeeded = 3;
     /** @type {{q:number, r:number}|null} */
     this.portalPosition = null;
     /** @type {Array<[{q:number,r:number},{q:number,r:number}]>} */
@@ -95,6 +97,7 @@ export class MapData {
       height: this.height,
       tiles,
       relicPositions: this.relicPositions,
+      relicsNeeded: this.relicsNeeded,
       portalPosition: this.portalPosition,
       teleportPairs: this.teleportPairs,
     };
@@ -111,6 +114,7 @@ export class MapData {
       map._tiles.set(key, data);
     }
     map.relicPositions = json.relicPositions || [];
+    map.relicsNeeded = json.relicsNeeded ?? 3;
     map.portalPosition = json.portalPosition || null;
     map.teleportPairs = json.teleportPairs || [];
     return map;

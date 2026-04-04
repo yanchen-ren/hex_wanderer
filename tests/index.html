@@ -46,6 +46,7 @@
   <div id="status">⏳ 正在加载测试文件...</div>
   <div id="results"></div>
 
+  <script src="https://cdn.jsdelivr.net/npm/fast-check@3/lib/bundle.js"></script>
   <script type="module">
     import { runAllTests, renderResults } from './test-runner.js';
 
@@ -64,6 +65,21 @@
     import './unit/fogsystem.test.js';
     import './unit/buildingsystem.test.js';
     import './unit/savesystem.test.js';
+    import './unit/editorstate.test.js';
+    import './unit/commandhistory.test.js';
+    import './unit/editortools.test.js';
+    import './unit/mapvalidator.test.js';
+    import './unit/maplibrary.test.js';
+    import './unit/importexport.test.js';
+
+    // Property tests (fast-check)
+    import './property/editor-tools.property.js';
+    import './property/relic-toggle.property.js';
+    import './property/command-history.property.js';
+    import './property/serialization.property.js';
+    import './property/map-library.property.js';
+    import './property/map-validator.property.js';
+    import './property/flood-fill.property.js';
 
     const statusEl = document.getElementById('status');
     const resultsEl = document.getElementById('results');

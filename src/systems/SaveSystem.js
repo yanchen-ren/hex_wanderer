@@ -180,6 +180,7 @@ export class SaveSystem {
     const m = state.map;
     if (!m.tiles || typeof m.tiles !== 'object') m.tiles = {};
     if (!Array.isArray(m.relicPositions)) m.relicPositions = [];
+    if (typeof m.relicsNeeded === 'undefined') m.relicsNeeded = 3;
     if (typeof m.portalPosition === 'undefined') m.portalPosition = null;
     if (!Array.isArray(m.teleportPairs)) m.teleportPairs = [];
 

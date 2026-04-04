@@ -19,7 +19,7 @@ export class HUD {
     this._lastDebuffKey = ''; // fingerprint to detect debuff changes
     this._state = {
       ap: 5, apMax: 5, hp: 100, hpMax: 100,
-      turn: 1, relics: 0, gold: 0,
+      turn: 1, relics: 0, relicsNeeded: 3, gold: 0,
       items: [], statusEffects: [],
     };
   }
@@ -96,7 +96,7 @@ export class HUD {
       </div>
       <div class="flex items-center gap-3 text-gray-300">
         <span>🔄 回合 <span class="text-white font-bold">${s.turn}</span></span>
-        <span>${HUD._uiIcon('relic')} ${s.relics}/3</span>
+        <span>${HUD._uiIcon('relic')} ${s.relics}/${s.relicsNeeded}</span>
         <span>${HUD._uiIcon('gold')} ${s.gold}</span>
       </div>`;
 

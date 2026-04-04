@@ -293,21 +293,31 @@ export class MapGenerator {
   }
 
   /**
-   * Place 3 relic fragments hidden inside events at map extreme coordinates.
+   * Place relic fragments hidden inside events at map extreme coordinates.
+   * Count varies by map size: small 3-4, medium 3-5, large 4-5.
    * Relics are NOT visible on the map — they are rewards inside events.
    */
   placeRelics(map) {
+    // Determine relic count based on map size
+    const relicRange = { small: [3, 4], medium: [3, 5], large: [4, 5] };
+    const [min, max] = relicRange[this.sizeKey] || relicRange.medium;
+    const relicCount = min + Math.floor(this.rng.next() * (max - min + 1));
+
     // Events that can contain relic fragments as rewards
     const relicEvents = ['relic_guardian', 'relic_shrine', 'relic_trial'];
 
+    // Generate candidate positions spread across the map
     const candidates = [
       { q: Math.floor(this.width * 0.15), r: Math.floor(this.height * 0.15) },
       { q: Math.floor(this.width * 0.85), r: Math.floor(this.height * 0.15) },
       { q: Math.floor(this.width * 0.5),  r: Math.floor(this.height * 0.85) },
+      { q: Math.floor(this.width * 0.15), r: Math.floor(this.height * 0.85) },
+      { q: Math.floor(this.width * 0.85), r: Math.floor(this.height * 0.85) },
     ];
 
     map.relicPositions = [];
-    for (let i = 0; i < candidates.length; i++) {
+    map.relicsNeeded = relicCount;
+    for (let i = 0; i < Math.min(relicCount, candidates.length); i++) {
       const pos = candidates[i];
       const placed = this._findPassableTileNear(map, pos.q, pos.r);
       if (placed) {

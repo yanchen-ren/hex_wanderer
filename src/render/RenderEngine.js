@@ -25,6 +25,7 @@ export class RenderEngine {
     this._selectedTile = null;
     this._playerFacing = 1; // 1 = facing right (default), -1 = facing left
     this.getFogState = null;
+    this._resizeHandler = null;
     this.fogEnabled = true;
     this._bakedTerrainTexture = null;
   }
@@ -35,9 +36,22 @@ export class RenderEngine {
     await this.assetLoader.preload(paths, onProgress);
     this.hexRenderer.buildTextureCache(tc, this.assetLoader);
     this.camera.bindInput(this.app.view);
-    window.addEventListener('resize', () => {
+    // Remove previous resize listener to prevent accumulation on game restart
+    if (this._resizeHandler) {
+      window.removeEventListener('resize', this._resizeHandler);
+    }
+    this._resizeHandler = () => {
       this.camera.resize(this.app.view.width, this.app.view.height);
-    });
+      // Re-center camera on player after orientation/resize change
+      if (this.mapData && this.playerPos) {
+        const tile = this.mapData.getTile(this.playerPos.col, this.playerPos.row);
+        if (tile) {
+          const pos = this.hexRenderer.offsetToPixel(this.playerPos.col, this.playerPos.row, tile.elevation);
+          this.camera.centerOn(pos.x, pos.y);
+        }
+      }
+    };
+    window.addEventListener('resize', this._resizeHandler);
     this.app.ticker.add(() => this.camera.applyTo(this.worldContainer));
   }
   setMap(md) {
@@ -435,6 +449,10 @@ export class RenderEngine {
     }
   }
   destroy() {
+    if (this._resizeHandler) {
+      window.removeEventListener('resize', this._resizeHandler);
+      this._resizeHandler = null;
+    }
     this.layers.destroy();
     this.hexRenderer.clearCache();
     this.assetLoader.clear();

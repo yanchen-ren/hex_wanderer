@@ -888,9 +888,10 @@ export class GameLoop {
     }
 
     if (outcome.type === 'relic_fragment') {
-      if (this.playerState.relicsCollected < 3) {
+      const needed = this.mapData.relicsNeeded ?? 3;
+      if (this.playerState.relicsCollected < needed) {
         this.playerState.relicsCollected += 1;
-        effects.push(`<img src="assets/ui/relic.png" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;"> 圣物碎片 (${this.playerState.relicsCollected}/3)`);
+        effects.push(`<img src="assets/ui/relic.png" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;"> 圣物碎片 (${this.playerState.relicsCollected}/${needed})`);
       } else {
         // Already collected all fragments — convert to gold
         const goldBonus = 50;
@@ -1344,8 +1345,9 @@ export class GameLoop {
   // ── Win condition ───────────────────────────────────────────
 
   async _checkWinCondition(_col, _row) {
-    if (this.playerState.relicsCollected < 3) {
-      const remaining = 3 - this.playerState.relicsCollected;
+    const relicsNeeded = this.mapData.relicsNeeded ?? 3;
+    if (this.playerState.relicsCollected < relicsNeeded) {
+      const remaining = relicsNeeded - this.playerState.relicsCollected;
       this.eventBus.emit('ui:toast', `<img src="assets/building/portal.png" style="width:16px;height:16px;vertical-align:middle;display:inline-block;margin:0 2px;"> 传送门需要 ${remaining} 块圣物碎片才能激活`);
       return;
     }
@@ -1936,6 +1938,7 @@ export class GameLoop {
       hpMax: this.playerState.hpMax,
       turn: this.playerState.turnNumber,
       relics: this.playerState.relicsCollected,
+      relicsNeeded: this.mapData.relicsNeeded ?? 3,
       gold: this.playerState.gold,
       items,
       statusEffects: this.playerState.statusEffects.map(se => ({ id: se.id, duration: se.duration })),

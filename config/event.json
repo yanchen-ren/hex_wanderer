@@ -4,7 +4,7 @@
       "type": "choice",
       "allowedTerrains": ["any"],
       "title": "旅途的起点",
-      "description": "你站在一片开阔的草地上，远方的迷雾中隐约可见山脉和森林的轮廓。一块古老的石碑矗立在面前，上面刻着文字：「收集三块圣物碎片<img src='assets/ui/relic.png' style='width:16px;height:16px;vertical-align:middle;display:inline-block;'>，找到传送门<img src='assets/building/portal.png' style='width:16px;height:16px;vertical-align:middle;display:inline-block;'>，即可离开此地。小心脚下的地形，善用你找到的道具。祝你好运，旅行者。」",
+      "description": "你站在一片开阔的草地上，远方的迷雾中隐约可见山脉和森林的轮廓。一块古老的石碑矗立在面前，上面刻着文字：「收集所有圣物碎片<img src='assets/ui/relic.png' style='width:16px;height:16px;vertical-align:middle;display:inline-block;'>（数量见状态栏），找到传送门<img src='assets/building/portal.png' style='width:16px;height:16px;vertical-align:middle;display:inline-block;'>，即可离开此地。小心脚下的地形，善用你找到的道具。祝你好运，旅行者。」",
       "deathWarning": false,
       "choices": [
         {
@@ -302,6 +302,48 @@
         },
         {
           "text": "标记位置后离开",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 1.0, "result": { "type": "nothing" } }
+          ]
+        }
+      ]
+    },
+    "leaf_pile": {
+      "type": "choice",
+      "allowedTerrains": ["forest"],
+      "title": "一堆落叶",
+      "description": "林间小路旁堆积着厚厚的一层金黄色落叶，踩上去应该很有趣。",
+      "deathWarning": false,
+      "choices": [
+        {
+          "text": "跳进去踩！",
+          "conditions": [],
+          "outcomes": [
+            { "probability": 0.5, "result": { "type": "nothing", "message": "你在落叶堆里蹦跶了一会儿，什么也没发生。嗯……就是普通的落叶。" } },
+            { "probability": 0.5, "result": { "type": "ap_change", "value": 1, "message": "嘎吱嘎吱！踩落叶的感觉太棒了，你玩得很开心，精力充沛！+1 AP" } }
+          ]
+        },
+        {
+          "text": "用火把点燃落叶堆",
+          "conditions": [{ "type": "has_item", "itemId": "torch" }],
+          "outcomes": [
+            { "probability": 0.3, "result": { "type": "hp_change", "value": -8, "message": "火势蔓延得比预想的快，你被火焰灼伤了！-8 HP" } },
+            { "probability": 0.35, "result": { "type": "gold_change", "value": 12, "message": "落叶烧尽后，你在灰烬中发现了几枚被埋藏的金币！+12 金币" } },
+            { "probability": 0.35, "result": { "type": "item_reward", "itemPool": ["antidote", "elixir"], "message": "火光中，落叶下藏着的一个小包裹露了出来！" } }
+          ]
+        },
+        {
+          "text": "用篝火点燃落叶堆",
+          "conditions": [{ "type": "has_item", "itemId": "mega_torch" }],
+          "outcomes": [
+            { "probability": 0.2, "result": { "type": "hp_change", "value": -5, "message": "篝火的热量让火势猛烈，你被热浪灼伤了一点。-5 HP" } },
+            { "probability": 0.4, "result": { "type": "gold_change", "value": 18, "message": "篝火将落叶堆彻底烧透，灰烬中露出了不少金币！+18 金币" } },
+            { "probability": 0.4, "result": { "type": "item_reward", "itemPool": ["antidote", "elixir", "tent"], "message": "篝火的强光照亮了落叶下的一个隐藏包裹！" } }
+          ]
+        },
+        {
+          "text": "绕过去",
           "conditions": [],
           "outcomes": [
             { "probability": 1.0, "result": { "type": "nothing" } }
@@ -2391,7 +2433,7 @@
       ]
     },
     "desert_quicksand": {
-      "type": "combat",
+      "type": "choice",
       "allowedTerrains": ["desert"],
       "title": "流沙",
       "description": "脚下的沙地突然变得松软，你正在下沉！流沙正在吞噬你！⚠️ 危险",

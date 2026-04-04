@@ -216,7 +216,7 @@ class MapGenerator {
   /** 验证地图可达性（BFS/DFS），确保出生点到所有关键地块可达 */
   validateReachability(mapData) → {valid: boolean, unreachable: [{q,r}]}
 
-  /** 放置圣物碎片（地图极值坐标处） */
+  /** 放置圣物碎片（数量根据地图尺寸随机决定：小 3-4，中 3-5，大 4-5） */
   placeRelics(mapData) → void
 
   /** 放置建筑（遵循配置约束） */
@@ -422,7 +422,7 @@ class BuildingSystem {
 class RenderEngine {
   constructor(pixiApp, assetLoader, camera)
 
-  /** 初始化五层 Container */
+  /** 初始化五层 Container，绑定 resize 监听器（确保不重复累积） */
   initLayers() → void
 
   /** 渲染可见区域的地图 */
@@ -684,6 +684,7 @@ RETURN { found: false, reason: '目标不可达' }
       "0,1": {"terrain": "water", "elevation": 2, "building": null, "event": "chest_01", "fogState": "unexplored"}
     },
     "relicPositions": [{"q": -20, "r": 0}, {"q": 15, "r": -18}, {"q": 5, "r": 20}],
+    "relicsNeeded": 3,
     "portalPosition": {"q": 10, "r": -5},
     "teleportPairs": [
       [{"q": 3, "r": 7}, {"q": -8, "r": 12}]
